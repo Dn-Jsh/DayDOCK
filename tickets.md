@@ -28,8 +28,8 @@ final candidate.
 | T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | Review (delivered; re-approval pending after T-013/T-014) |
 | T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | Review (delivered; re-approval pending after T-013/T-014) |
 | T-012 | M6 | Build, packaging and release verification | Rob (coordinator) | Medium | Standard | To do |
-| T-013 | M6 | Frontend repair batch from review findings | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | In progress |
-| T-014 | M6 | Data/focus repair batch from review findings | Josh (`mimo-v2.6-flash-free`*) | High | Gold | In progress |
+| T-013 | M6 | Frontend repair batch from review findings | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review (repairs done; re-approval pending) |
+| T-014 | M6 | Data/focus repair batch from review findings | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review (repairs done; re-approval pending) |
 
 \* Model deviation, recorded per AGENTS.md "Report unavailable settings": the preferred
 `gpt-6.1-sol` / `gpt-6-luna` failed at launch with **"Insufficient account funds"**, so all
@@ -553,9 +553,41 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
    gone; behavior (data-layer message or feature fallback) unchanged.
 7. `npm run typecheck` and `npx vitest run src/features src/app src/lib` green.
 
-**Verification evidence:** (pending worker report + coordinator re-run)
+**Verification evidence** (2026-10-10)
 
-**Status: In progress**
+- Worker (Maya) report: all 8 findings fixed. Wrote the StrictMode regression
+  tests FIRST — they failed on the old code (`onSave called 0 times`,
+  status stuck at "Saving…"), empirically reproducing the Major, then passed
+  after the fix. Delivered `AutoSaver.reset()` (re-attaches after StrictMode's
+  phantom cleanup; `cancel()` no longer bumps `generation` so an in-flight
+  write's status isn't frozen), effect-setup reset in `NoteEditor`, new
+  `NoteEditor.test.tsx` (3 StrictMode tests: debounce-save, unmount flush,
+  note-switch flush) + 4 `reset()` unit tests; contrast tokens re-measured with
+  a WCAG script — light ring `#52525b` 7.03–7.73:1, dark ring `#71717a`
+  3.24–4.10:1 (all ≥3:1), light muted `#6b6b73` 4.81:1 on secondary (≥4.5:1);
+  `confirmDelete` re-throws so the dialog stays open with a visible
+  `role="alert"` error layered above the overlay + refresh-failure banner;
+  shared `FieldError` component applied to task/project/note forms; 250 ms task
+  search debounce with 5 new TasksPage tests incl. stale-response ordering;
+  `toErrorMessage` reduced to the single `src/lib/errors.ts` source (grep:
+  exactly one definition); unused `useDataStatus` removed.
+- Coordinator integration on top of the batch: mounted
+  `<FocusCompletionWatcher />` in `App.tsx` (direct module import, not the
+  focus barrel — first attempt through the barrel triggered Rollup's
+  `INEFFECTIVE_DYNAMIC_IMPORT` and pulled FocusPage into the main chunk;
+  reverted to the direct import, FocusPage lazy chunk restored);
+  `FOCUS_COMPLETION_EVENT` listener added to `TodayPage` so the card refreshes
+  when the watcher completes a session off-page; `SelectField.value` widened to
+  `string | null` with internal normalization to `""` — the installed Radix
+  version's `shouldShowPlaceholder` only treats `""`/`undefined` as
+  placeholder-triggering (NOT `null`), so the reviewer's suggested raw
+  `value={null}` would have rendered an empty trigger; SettingsPage cast
+  removed.
+- Coordinator full gate (2026-10-10, commit `4d19e2f`): `npm run typecheck`
+  exit 0; `npx vitest run` → **261/261 passed (21 files)**; `npm run build`
+  exit 0 (no warnings, per-page lazy chunks intact); `cargo check` exit 0.
+
+**Status: Review** (native re-verification recorded below; re-approval pending)
 
 ---
 
@@ -602,6 +634,106 @@ untouched by Josh). Nothing in `src/features/notes|tasks|today|projects/**`,
 9. `npm run typecheck`, `npx vitest run src/data src/features/focus src/features/settings`,
    `cargo check` green.
 
-**Verification evidence:** (pending worker report + coordinator re-run)
+**Verification evidence** (2026-10-10)
 
-**Status: In progress**
+- Worker (Josh) report: findings 1-5, 7, 9, 10 fixed; 6 rebutted with evidence;
+  8 no-drift-found. Blocker fix: the INSERT column list now DRIVES both column
+  names and placeholders (id excluded, SQLite autoincrements), with a lockstep
+  regression test; new `repositories.integration.test.ts` (39 tests) exercises
+  every repository against a mocked driver capturing `(sql, params)` with an
+  automatic placeholder/param parity check in `afterEach` — the exact bug class
+  that escaped before cannot pass again. App-global completion:
+  `completeSession.ts` (single completion implementation, deadline `endedAt`
+  derived from stored timestamps, dedupe by `startedAt+plannedDurationMs`) +
+  `<FocusCompletionWatcher />` (mount/hashchange/focus/1 s interval) exported
+  for the shell to mount. Retry recovery: `db.ts`/`index.ts` clear their
+  cached promise inside `.catch` before rethrowing; `db.test.ts` proves
+  fail-once-then-succeed recovery via `vi.resetModules`. Completion bookkeeping
+  tests: `completeSession.test.ts` (8), `FocusCompletionWatcher.test.tsx` (6),
+  timer tests for deadline `endedAt` + paused guard. `save_backup_file` now
+  writes temp + `std::fs::rename` with all guards intact. Finding 6 rebutted:
+  tauri-plugin-sql 2.5.0 has no transaction API (per-call pool checkout,
+  single prepared statement — verified in the plugin's `commands.rs`/
+  `wrapper.rs`), so unassign-then-delete (the non-destructive order) is kept
+  and documented in a code comment rather than faked. Finding 8: no drift —
+  validation limits match contracts (200/60/200 titles, 1–180 min, YYYY-MM-DD).
+- Worker gates: typecheck exit 0; `npx vitest run src/data src/features/focus
+  src/features/settings` → **156 passed**; `cargo check` exit 0.
+- Coordinator integration: mounted the watcher in `App.tsx`, added the
+  completion-event refresh to `TodayPage`, widened `SelectField.value` to
+  `string | null` (normalized to `""` internally — the installed Radix shows
+  the placeholder for `""`/`undefined`, not `null`; verified in the plugin's
+  `shouldShowPlaceholder`), removed the SettingsPage cast.
+- Coordinator full gate (2026-10-10, commit `4d19e2f`): typecheck exit 0;
+  full suite **261/261 (21 files)**; `npm run build` exit 0; `cargo check`
+  exit 0.
+
+**Status: Review** (native re-verification recorded below; gold re-approval by
+Juan and Laura on the same candidate pending)
+
+---
+
+## Coordinator native verification — repaired candidate `4d19e2f` (2026-10-10)
+
+Run by Rob on the live app (`npm run tauri dev`, Tauri runtime, SQLite probes
+against `%APPDATA%\com.danje.daydock\daydock.db`). This closes the "native
+re-verification" items on T-013/T-014 and the "blocked without a Tauri runtime"
+item on T-009. Test data left in the dev DB: 1 task, 1 note, 2 focus sessions,
+1 project (`Programming`, reassigned task) — the `focusDurationMinutes` test
+value was restored to 25.
+
+- **Notes auto-save under StrictMode (T-013 AC1, Laura Major #1):** typed
+  content persisted to SQLite in the real runtime (`notes.content` written,
+  `updated_at` advanced from create time to `08:23:38Z`); UI status "Saved"
+  matches the DB. The former dead-saver state is gone.
+- **App-global focus completion (T-014 AC2, Laura Major #2):** a session whose
+  deadline passed **off the Focus page** (user on Today) wrote its history row
+  and cleared `focus_state` via the watcher; the Today card updated through
+  `FOCUS_COMPLETION_EVENT` instead of showing a phantom running session.
+- **Juan's Blocker (focus INSERT column/param parity):** every completed row
+  this session was written through the repaired `create` — all 7 columns land
+  with correct values (probed directly).
+- **Focus timestamp investigation — resolved, NO BUG.** A prior row was
+  misread as "started_at = original start"; history `started_at` is the
+  **resume anchor by design** (`resumeTimer` re-anchors `startedAt`;
+  `tickTimer` keeps `state.startedAt`). Reproduced deterministically with a DB
+  probe at every transition: Start `08:55:42.598` → Pause (`paused`, same
+  anchor, `elapsed_before=23702`) → Resume (`running`, **new anchor
+  `08:56:26.904`**, bank preserved) → Today card **70 %** (= 23.7 s banked +
+  18.3 s segment ✓) → deadline `08:57:03.202` = resume + 36.298 s remaining,
+  exact to the millisecond → row `started_at=08:56:26.904`,
+  `ended_at=08:57:03.202`, `focus_state` cleared, written by the watcher
+  off-page. The earlier session's row follows the identical pattern (its
+  `08:27:43.005` was its resume anchor). No code path produces the hypothesized
+  bad state; no repair ticket was raised.
+- **JSON export through the native dialog (T-009 AC2):** "Export backup" →
+  Windows Save As (default `daydock-backup-2026-10-10.json`) → file written,
+  **1,452 bytes**, UI message shows the same path and byte count. Parsed
+  payload: `app{name, version 0.1.0, schema 1}`, `exportedAt`,
+  projects=1 / tasks=1 / notes=1 / focusSessions=2, `settings{theme,
+  focusDurationMinutes}`, session anchors correct. Test artifact deleted after
+  validation.
+- **Safe project delete (T-004/T-005: tasks are never deleted):** throwaway
+  project create+delete clean; deleting `Programming` (1/1 task) left the task
+  alive with `project_id NULL`, confirm dialog states "Its tasks are kept —
+  they are not deleted"; project recreated and task reassigned (artifacts
+  restored).
+- **Theme:** light applied (DB `theme=light`, toggle label flips, screenshot
+  shows neutral surfaces, sharp corners, no gradients), dark restored.
+- **Search:** note search "zzzqqq" → "0 matches" empty state with guidance,
+  "autosave" → 1 match, cleared → list restored; task search "zzz" → "No tasks
+  match your filters", cleared → "1 of 1 task" (T-013 debounce working live).
+- **`Custom…` preset (Laura nit):** duration 1 min → preset combo shows
+  `Custom…` with spin value 1; restored to 25 → `25 minutes`.
+- **Restart persistence:** task persistence across a real Tauri restart
+  verified earlier in the same native run.
+- Automation note: the native Save As dialog is a child window — orca keyboard
+  input was refused (`window_not_focused`), so the file name was left at its
+  configured default; the write was verified by the file on disk plus the UI
+  receipt, not by dialog keystrokes.
+
+**Round-2 re-reviews (Juan for T-011/gold, Laura for T-010) dispatched on this
+same candidate; no ticket moves to Done before both approve.**
+
+---
+

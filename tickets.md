@@ -21,10 +21,10 @@ final candidate.
 | T-003 | M1 | App shell, design system, navigation and theme | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
 | T-004 | M2 | Task management (CRUD, filters, search) | Maya (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
 | T-005 | M3 | Project organization | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
-| T-006 | M3 | Today dashboard | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
+| T-006 | M3 | Today dashboard | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
 | T-007 | M4 | Quick notes | Maya (`mimo-v2.6-flash-free`*) | Low | Standard | Review |
 | T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
-| T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
+| T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
 | T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
 | T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
 | T-012 | M6 | Build, packaging and release verification | Rob (coordinator) | Medium | Standard | To do |
@@ -238,7 +238,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   completed-today count, priority (high) tasks, active focus session card, and a
    quick-add task input. All figures derive from stored data.
 - **Owner:** Maya · **Dependencies:** T-004 · **Risk:** Medium · **Lane:** Standard
-- **Status:** To do
+- **Status:** Review
 
 **Owned files:** `src/features/today/**`.
 
@@ -253,7 +253,21 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 4. Active focus session card shows remaining time while a session runs.
 5. Empty states for no tasks; all figures re-read from storage after changes.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Maya): `npm run typecheck` exit 0; `npx vitest run src/features/today` →
+  **18/18 passed**; files confined to `src/features/today/**` (7 files).
+- All four derivation rules live only in `dashboardModel.ts` (pure, `today` injected) and are
+  unit-tested with fixtures (due today/tomorrow, overdue by a day, completed today vs
+  yesterday, high-priority-but-completed excluded, null due dates). Quick-add short-circuits
+  whitespace before the data layer and preserves typed input on `ValidationError`.
+- Focus card renders `computeFocusProgress(state, Date.now())` (500ms re-render) — the pure
+  helper remains the only clock source; date refreshed on mount/focus/60s.
+- Coordinator re-run (2026-10-10): `npm run typecheck` exit 0; `npm test` →
+  **188/188 passed (14 files)**; `npm run build` exit 0; `cargo check` → EXIT=0.
+- Not yet verified: live dashboard against a populated database (→ T-010/T-012 native run).
+
+**Status: Review**
 
 ---
 
@@ -345,7 +359,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   data export: writes a JSON backup of projects, tasks, notes, focus sessions and
   settings through the native save dialog.
 - **Owner:** Josh · **Dependencies:** T-002, T-003, T-008 (focus duration setting
-  consumed by the timer) · **Risk:** Medium · **Lane:** Gold · **Status:** To do
+  consumed by the timer) · **Risk:** Medium · **Lane:** Gold · **Status:** Review
 
 **Owned files:** `src/features/settings/**`, `src/data/export.ts`.
 
@@ -361,7 +375,26 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
    available** in the MVP.
 5. App information shows name, version and storage location.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Josh): `npm run typecheck` exit 0; `npx vitest run src/data/export.test.ts
+  src/features/settings` → **3 files, 23/23 passed**.
+- Tests prove: serialized backup round-trips through `JSON.parse`; payload table counts equal
+  the injected aggregate's fixture counts (3/5/2/4); `app.schema === 1` + `exportedAt`
+  present; exact-key shape assertion fails on a deleted `exportedAt`, an injected extra key,
+  or a view-only `taskCount` leaking into a project row; dialog cancel → `null` with `invoke`
+  never called; write path asserts `save_backup_file` args and UTF-8 byte count.
+- Honesty copy ("Export only — restoring a backup is not available in this version.") is
+  test-pinned in `settingsCopy.test.ts`.
+- `APP_VERSION` constant mirrors `package.json` (a `package.json` import failed typecheck in
+  this TS config) — a unit test reads `package.json` from disk and **fails if they diverge**.
+- Coordinator gate (2026-10-10): full `npm test` → **188/188**; typecheck exit 0; build exit 0;
+  `cargo check` → EXIT=0 with the new `save_backup_file` command (restricts writes to
+  `.json` targets, 100MB cap, never touches the database file).
+- **Blocked here:** the native save dialog + real file write cannot run without a Tauri
+  runtime — assigned to T-012's native verification.
+
+**Status: Review**
 
 ---
 

@@ -17,19 +17,19 @@ final candidate.
 | ID | Milestone | Task | Owner | Risk | Lane | Status |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-001 | M1 | Repository and Tauri/React foundation | Rob (coordinator) | Low | Standard | Done |
-| T-002 | M2 | SQLite schema, migrations and typed data layer | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
-| T-003 | M1 | App shell, design system, navigation and theme | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
-| T-004 | M2 | Task management (CRUD, filters, search) | Maya (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
-| T-005 | M3 | Project organization | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
-| T-006 | M3 | Today dashboard | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
-| T-007 | M4 | Quick notes | Maya (`mimo-v2.6-flash-free`*) | Low | Standard | Review |
-| T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
-| T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
-| T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | Review (delivered; re-approval pending after T-013/T-014) |
-| T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | Review (delivered; re-approval pending after T-013/T-014) |
-| T-012 | M6 | Build, packaging and release verification | Rob (coordinator) | Medium | Standard | To do |
-| T-013 | M6 | Frontend repair batch from review findings | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review (repairs done; re-approval pending) |
-| T-014 | M6 | Data/focus repair batch from review findings | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review (repairs done; re-approval pending) |
+| T-002 | M2 | SQLite schema, migrations and typed data layer | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Done |
+| T-003 | M1 | App shell, design system, navigation and theme | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Done |
+| T-004 | M2 | Task management (CRUD, filters, search) | Maya (`mimo-v2.6-flash-free`*) | Medium | Gold | Done |
+| T-005 | M3 | Project organization | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Done |
+| T-006 | M3 | Today dashboard | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Done |
+| T-007 | M4 | Quick notes | Maya (`mimo-v2.6-flash-free`*) | Low | Standard | Done |
+| T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Done |
+| T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | Done |
+| T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | Done (round-2 APPROVE `79b23ba`) |
+| T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | Done (round-2 APPROVE `79b23ba`) |
+| T-012 | M6 | Build, packaging and release verification | Rob (coordinator) | Medium | Standard | Done |
+| T-013 | M6 | Frontend repair batch from review findings | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Done (round-2 APPROVE `79b23ba`) |
+| T-014 | M6 | Data/focus repair batch from review findings | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Done (round-2 APPROVE `79b23ba`) |
 
 \* Model deviation, recorded per AGENTS.md "Report unavailable settings": the preferred
 `gpt-6.1-sol` / `gpt-6-luna` failed at launch with **"Insufficient account funds"**, so all
@@ -113,10 +113,11 @@ T-009 → (T-010 ∥ T-011) → T-012. No ticket starts while blocked.
   `npm test` → **64/64 passed**, `npm run build` exit 0, `cargo check` → `EXIT=0`.
 - Deviation accepted: `DataError` attaches `cause` via `Object.assign` instead of
   `super(message, options)` (project targets ES2020 lib) — export shape unchanged.
-- Gold-lane independent approvals: pending (T-011 Juan architecture/data-boundary,
-  T-010 Laura behavior).
+- Gold-lane independent approvals: **both delivered on `79b23ba`** — Juan
+  (T-011, architecture/data-boundary) APPROVE, Laura (T-010, behavior)
+  APPROVE; see the final section of this file.
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -160,7 +161,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 - Known leftover: one orphan `DayDock` browser tab opened by the worker's manual check;
   server stopped, tab is inert. No repo temp files left (verified by worker `grep`).
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -197,7 +198,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 - Not yet verified: in-app interaction and restart persistence (needs native run → T-012);
   screen-reader output (→ T-010).
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -230,7 +231,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   **147/147 passed (10 files)**; `npm run build` exit 0.
 - Not yet verified: live dialog/keyboard walkthrough (→ T-010), restart persistence (→ T-012).
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -269,7 +270,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   **188/188 passed (14 files)**; `npm run build` exit 0; `cargo check` → EXIT=0.
 - Not yet verified: live dashboard against a populated database (→ T-010/T-012 native run).
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -305,7 +306,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   `npm run build` exit 0 (`NotesPage` code-split).
 - Not yet verified: live auto-save in a running app and restart persistence (→ T-012).
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -351,7 +352,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 - Not yet verified: real system sleep/suspension and restart persistence (→ T-012),
   screen-reader output (→ T-010).
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -398,7 +399,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 - **Blocked here:** the native save dialog + real file write cannot run without a Tauri
   runtime — assigned to T-012's native verification.
 
-**Status: Review**
+**Status: Done**
 
 ---
 
@@ -453,7 +454,8 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   content never persisted despite "Saved" status) and Juan's T-011 Blocker
   (`focusSessions.ts` INSERT binds 6 params into 7 placeholders) by code reading.
 
-**Status: Review** (re-verify and re-approve the repaired candidate in round 2)
+**Status: Done** (round 2: Laura APPROVE `79b23ba`; every finding fixed or
+rebutted — see final section)
 
 ---
 
@@ -492,7 +494,8 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 - Coordinator independently confirmed the Blocker (see T-010 evidence) before
   dispatching repairs.
 
-**Status: Review** (re-verify and re-approve the repaired candidate in round 2)
+**Status: Done** (round 2: Juan APPROVE `79b23ba` — gold gate for
+T-002/T-004/T-008/T-009; every finding fixed or soundly rebutted)
 
 ---
 
@@ -513,7 +516,65 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
    known limitations.
 4. Acceptance tests from `PROJECT-BRIEF.md` mapped to recorded evidence.
 
-**Verification evidence:** (pending)
+**Verification evidence** (2026-10-10/11, coordinator, candidate `79b23ba`)
+
+- **AC1 — final gates (rerun on the final candidate):** `npm run typecheck`
+  → exit 0; `npx vitest run` → **261/261 passed (21 files), exit 0**;
+  `npm run build` → exit 0 (no warnings; per-page lazy chunks intact). An
+  earlier vitest attempt failed with a worker-timeout while the release build
+  was saturating the machine — that run was discarded, not counted; the clean
+  rerun above stands. Rust is covered by the successful release compile
+  below.
+- **AC2 — Windows build: VERIFIED (not merely attempted).** `npm run tauri
+  build` (with `CARGO_BUILD_JOBS=2` to avoid the OOM seen on full-parallel
+  rustc) → exit 0: release profile compiled in 3m16s, then two bundles
+  produced with hash-verified toolchain downloads (WiX 3.14, NSIS 3.11 +
+  tauri-utils):
+  - `src-tauri/target/release/bundle/msi/DayDock_0.1.0_x64_en-US.msi` (3.21 MiB)
+  - `src-tauri/target/release/bundle/nsis/DayDock_0.1.0_x64-setup.exe` (2.33 MiB)
+  - Smoke test: the release `daydock.exe` launched, opened its "DayDock"
+    window against the same preloaded SQLite DB (migrations re-ran
+    idempotently), and was closed cleanly after inspection.
+- **AC3 — README:** `README.md` covers Prerequisites, Installation,
+  Development, Tests and checks, Windows build, Where your data lives,
+  Features, Architecture, Known limitations (including export-only — no
+  restore), Permissions and safety.
+- **AC4 — PROJECT-BRIEF "How I will know it works" mapped to evidence:**
+  1. *Create task → complete → restart → still completed* — live: task
+     "Verify DayDock persistence" completed `06:49:30Z`, still `completed`
+     after multiple real restarts (latest probe after the relaunch cycle).
+  2. *Projects + assignment + progress correct* — live: project create/delete,
+     task assignment via the edit dialog (`project_id=3` verified in DB),
+     `1/1 task` progress chip; project detail page logic covered by 12/12
+     feature tests + both reviews (not separately walked live this session).
+  3. *Today dashboard reflects real data + running focus* — live probes:
+     completed/overdue/high figures match the DB; focus card showed Running
+     47 %/70 %/24:06 with math matching stored timestamps exactly.
+  4. *Notes create/edit/search persist across restart* — live: content in
+     SQLite, search verified both directions, notes survived the restarts.
+  5. *Focus start/pause/resume/reset; history rows* — live, twice, with a DB
+     probe at every transition (full anchor reproduction in the final
+     tickets section); Reset verified to write no history row.
+  6. *Dark/light themes* — live both directions + persisted across restart.
+  7. *Valid JSON export with every table* — live through the native dialog:
+     1,452-byte file, payload parsed and counted (1/1/1/2 + settings).
+  8. *Keyboard-operable core flows* — live coordinator spot-checks (dialogs,
+     Radix selects via arrows/Enter, inputs, search) + Laura's round-1
+     walkthrough findings (all fixed) and round-2 a11y re-spotchecks; a
+     full six-page keyboard-only native audit was not rerun in round 2.
+  9. *`npm test` + Windows build succeed* — both green (AC1/AC2).
+- **Gold-lane brief items:** (1) task persistence across restart ✓ live;
+  (2) valid JSON export ✓ live; (3) focus accuracy across pause/resume ✓
+  live with millisecond-exact probes — system *suspension* is covered by the
+  unit test simulating a 1-hour sleep (completes exactly once with
+  `actualDurationMs = planned`); a real OS sleep could not be provoked on
+  demand in this environment (honestly recorded).
+- **Constraints honored:** offline-only (no network calls at runtime; the
+  only downloads were build-time toolchain fetches by Tauri), export-only
+  (no restore anywhere, copy test-pinned), plain-text notes, database never
+  committed to Git (checked: `target/`, DB and bundles are ignored).
+
+**Status: Done**
 
 ---
 
@@ -587,7 +648,8 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   exit 0; `npx vitest run` → **261/261 passed (21 files)**; `npm run build`
   exit 0 (no warnings, per-page lazy chunks intact); `cargo check` exit 0.
 
-**Status: Review** (native re-verification recorded below; re-approval pending)
+**Status: Done** (native verified; round 2: Laura APPROVE `79b23ba`,
+Juan re-verified the shared helper)
 
 ---
 
@@ -668,8 +730,8 @@ untouched by Josh). Nothing in `src/features/notes|tasks|today|projects/**`,
   full suite **261/261 (21 files)**; `npm run build` exit 0; `cargo check`
   exit 0.
 
-**Status: Review** (native re-verification recorded below; gold re-approval by
-Juan and Laura on the same candidate pending)
+**Status: Done** (native verified; round 2: Juan APPROVE `79b23ba` with the
+full repair table re-verified, Laura APPROVE on the same candidate)
 
 ---
 
@@ -732,8 +794,51 @@ value was restored to 25.
   configured default; the write was verified by the file on disk plus the UI
   receipt, not by dialog keystrokes.
 
-**Round-2 re-reviews (Juan for T-011/gold, Laura for T-010) dispatched on this
-same candidate; no ticket moves to Done before both approve.**
+**Round-2 re-reviews — both APPROVED the same candidate `79b23ba` (2026-10-10):**
+
+- **Juan (T-011, gold gate for T-002/T-004/T-008/T-009): APPROVE.** All round-1
+  findings re-verified FIXED/sound: Blocker regression-pinned
+  (`focusSessions.ts` placeholders derived from the column list;
+  `repositories.integration.test.ts` lockstep + afterEach parity), single
+  `toErrorMessage` (14 call sites import `src/lib/errors.ts`), completion
+  bookkeeping tests (8 + 6), Retry recovery tests, 39-test repository
+  integration suite, atomic backup write, `useDataStatus` gone, transaction
+  rebuttal accepted against the installed `tauri-plugin-sql-2.5.0` source (no
+  transaction API, per-call pool checkout), and all three coordinator
+  integration seams architecturally accepted (watcher mount + direct import
+  with chunk evidence, TodayPage event listener, `SelectField` `string|null`
+  normalization verified against Radix `shouldShowPlaceholder`). New Minor
+  (FocusSessionCard's `../focus` barrel import statically pulls the
+  FocusPage chunk into Today's chunk, ~10.6 KB — no correctness impact) and
+  2 Nits (duplicated 1–180 range in FocusPage; pause/watcher sub-second race
+  observation) recorded as follow-ups; reviewer states none blocks approval.
+  Checks: `npm run typecheck` exit 0; `npx vitest run` **261/261 (21 files)**.
+- **Laura (T-010): APPROVE.** Independently re-verified all 3 Majors, 4
+  Minors and the Nits: re-ran the new `NoteEditor.test.tsx` against the OLD
+  `1e10d02` code in a temp extraction (**3/3 FAILED** — empirically proving
+  the StrictMode regression test captures Major #1) and it passes on the new
+  candidate; re-measured contrast with her own script (ring worst
+  **6.09:1 light / 3.08:1 dark**, all ≥3:1; light muted-on-secondary
+  **4.81:1** ≥4.5); verified app-global completion wiring, T-009 AC2 shape,
+  CSP `form-action`, debounce, `FieldError`, `Custom…` placeholder; accepted
+  the transaction rebuttal against crate source; security/privacy delta
+  re-pass clean (SQL confinement, parameterization, fixed `DataError`
+  strings, exact-key export pinning). New findings recorded as follow-ups
+  (Minor: no component test for the TodayPage event wiring / NotesPage
+  failure paths; Nit: SettingsPage duration error lacks `role="alert"` — a
+  round-1 carry-over outside T-013's scope; Nit: stale comment). Checks:
+  `npm run typecheck` exit 0; `npx vitest run` **261/261 (21 files)**.
+
+**Restart persistence (closing the last native AC gaps):** with theme=light
+and a 25-minute session running, the app was killed and relaunched — it came
+back in **light** (toggle reads "Switch to dark theme", restored from SQLite;
+T-003 AC2) and the **focus session was restored** (Today card Running 24:06
+with wall-clock-correct remaining across the downtime; Focus page showed
+01:24 elapsed of 25:00; T-008 AC4). The test session was then Reset through
+the confirm dialog: `focus_state` = 0 rows, `focus_sessions` unchanged (2) —
+reset writes no history row, as specified. Theme returned to dark.
+
+All follow-up findings from both reviewers are recorded in `backlog.md`.
 
 ---
 

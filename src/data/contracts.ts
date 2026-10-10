@@ -210,7 +210,12 @@ export class ValidationError extends Error {
  */
 export class DataError extends Error {
   constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options);
+    // `super(message, options)` needs the ES2022 lib; the project targets
+    // ES2020, so the cause is attached explicitly instead.
+    super(message);
     this.name = "DataError";
+    if (options !== undefined && "cause" in options) {
+      Object.assign(this, { cause: options.cause });
+    }
   }
 }

@@ -16,9 +16,9 @@ final candidate.
 
 | ID | Milestone | Task | Owner | Risk | Lane | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| T-001 | M1 | Repository and Tauri/React foundation | Rob (coordinator) | Low | Standard | In progress |
-| T-002 | M2 | SQLite schema, migrations and typed data layer | Josh (`gpt-6.1-sol`) | High | Gold | To do |
-| T-003 | M1 | App shell, design system, navigation and theme | Maya (`gpt-6-luna`) | Medium | Standard | To do |
+| T-001 | M1 | Repository and Tauri/React foundation | Rob (coordinator) | Low | Standard | Done |
+| T-002 | M2 | SQLite schema, migrations and typed data layer | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
+| T-003 | M1 | App shell, design system, navigation and theme | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
 | T-004 | M2 | Task management (CRUD, filters, search) | Maya (`gpt-6-luna`) | Medium | Gold | To do |
 | T-005 | M3 | Project organization | Maya (`gpt-6-luna`) | Medium | Standard | To do |
 | T-006 | M3 | Today dashboard | Maya (`gpt-6-luna`) | Medium | Standard | To do |
@@ -88,11 +88,24 @@ T-009 → (T-010 ∥ T-011) → T-012. No ticket starts while blocked.
    violations throw `ValidationError` with per-field messages.
 4. Database failures surface as `DataError` with a safe message; no error path logs
    note content or any secret.
-5. Vitest unit tests cover validation rules and the JSON backup payload shape
+5. Vitest unit tests cover validation rules, row mapping and date/clock helpers
    (`npm test` green).
 6. `cargo check` and `npm run typecheck` green.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Josh): `npm run typecheck` exit 0; `npm test` → 3 files / **64 tests passed**;
+  `cargo check` → EXIT=0, no warnings. Files: `src-tauri/src/migrations.rs`,
+  `src/data/{db,validation,index,contracts}.ts`, `src/data/repositories/*`,
+  `src/lib/date.ts` + 3 test files.
+- Coordinator re-run on the integrated candidate (2026-10-10): `npm run typecheck` exit 0,
+  `npm test` → **64/64 passed**, `npm run build` exit 0, `cargo check` → `EXIT=0`.
+- Deviation accepted: `DataError` attaches `cause` via `Object.assign` instead of
+  `super(message, options)` (project targets ES2020 lib) — export shape unchanged.
+- Gold-lane independent approvals: pending (T-011 Juan architecture/data-boundary,
+  T-010 Laura behavior).
+
+**Status: Review**
 
 ---
 
@@ -121,7 +134,22 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 5. Loading, empty and error state components exist and are reused by feature pages.
 6. `npm run typecheck` and `npm run build` green.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Maya): final `tsc --noEmit` → EXIT=0, zero errors (the only mid-session error
+  was the tolerated not-yet-landed `../data/index` module). Worker additionally drove the
+  shell in a browser via computer-use: hash routing + reload persistence, skip-link as
+  first tab stop, `aria-current="page"`, single `h1`, `main` has no horizontal scroll at
+  900px, theme toggle verified both directions (`html.class` + `color-scheme`), dialog
+  labelled by title + Escape closes, `Progress` requires a label.
+- Coordinator re-run (2026-10-10): `npm run typecheck` exit 0; `npm run build` exit 0
+  with lazy per-page chunks (`TodayPage`, `TasksPage`, … emitted separately).
+- Not verifiable in this session: theme persistence across a real Tauri restart (needs
+  T-012 native run); a literal 940×600 window (browser check ran at 900px width).
+- Known leftover: one orphan `DayDock` browser tab opened by the worker's manual check;
+  server stopped, tab is inert. No repo temp files left (verified by worker `grep`).
+
+**Status: Review**
 
 ---
 

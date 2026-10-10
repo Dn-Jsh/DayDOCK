@@ -20,10 +20,10 @@ final candidate.
 | T-002 | M2 | SQLite schema, migrations and typed data layer | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
 | T-003 | M1 | App shell, design system, navigation and theme | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
 | T-004 | M2 | Task management (CRUD, filters, search) | Maya (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
-| T-005 | M3 | Project organization | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
+| T-005 | M3 | Project organization | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
 | T-006 | M3 | Today dashboard | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
 | T-007 | M4 | Quick notes | Maya (`mimo-v2.6-flash-free`*) | Low | Standard | Review |
-| T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | To do |
+| T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
 | T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
 | T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
 | T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
@@ -205,7 +205,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   tasks are kept and unassigned), project detail view listing that project's tasks,
   and a progress bar (completed/total).
 - **Owner:** Maya · **Dependencies:** T-004 · **Risk:** Medium · **Lane:** Standard
-- **Status:** To do
+- **Status:** Review
 
 **Acceptance criteria**
 
@@ -216,7 +216,19 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 4. Empty and error states covered; keyboard accessible.
 5. `npm run typecheck` green.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Maya): `npm run typecheck` exit 0; `npx vitest run src/features/projects` →
+  **12/12 passed**; files confined to `src/features/projects/**` (helpers + test,
+  `ProjectCard`, `ProjectDialog`, `ProjectsPage`, barrel).
+- Delete confirmation copy states tasks are kept and only unassigned; progress is computed
+  from the exact rendered rows (`summarizeProjectTasks`), 0-task project → 0% (no NaN,
+  unit-tested). Project detail reuses the `TaskList` export — no duplicated task rendering.
+- Coordinator re-run (2026-10-10): `npm run typecheck` exit 0; `npm test` →
+  **147/147 passed (10 files)**; `npm run build` exit 0.
+- Not yet verified: live dialog/keyboard walkthrough (→ T-010), restart persistence (→ T-012).
+
+**Status: Review**
 
 ---
 
@@ -288,7 +300,7 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
   time is computed from wall-clock timestamps so sleep/suspension and window blur are
   accurate; the active session survives restart.
 - **Owner:** Josh · **Dependencies:** T-002, T-003 · **Risk:** High · **Lane:** Gold
-- **Status:** To do
+- **Status:** Review
 
 **Owned files:** `src/features/focus/**`.
 
@@ -304,7 +316,26 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 5. Pure timing logic is unit-tested (fake timers, injected clock) and green.
 6. `npm run typecheck` green.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Josh): `npm run typecheck` exit 0; `npx vitest run src/features/focus` →
+  **28/28 passed (2 files, 22 timing tests)**; files confined to `src/features/focus/**`.
+- Timing is wall-clock derived (`elapsed = elapsedBeforeMs + (running ? now − startedAt : 0)`);
+  `grep` confirms no `Date.now()` inside the pure model. Tests cover pause freezing elapsed
+  while the clock advances 30 min, a **simulated 1-hour sleep during a 25-minute session**
+  completing exactly once with `actualDurationMs = planned`, idempotent re-tick,
+  backwards-clock clamps, `resetTimer → null`, and `computeFocusProgress` math.
+- State persisted on every transition (`focusState.save/clear` runs before the UI update) and
+  restored on mount; completion write guarded against duplicates (bookkeeping ref + history
+  dedupe).
+- Coordinator re-run (2026-10-10): full `npm test` → **147/147**; typecheck exit 0; build exit 0.
+- **Known gap flagged for T-010:** a session reaching its deadline while the user is on a
+  different page (or an app closed exactly at completion) writes its history row when the
+  Focus page next mounts — deferred, not lost, but completion is not app-global yet.
+- Not yet verified: real system sleep/suspension and restart persistence (→ T-012),
+  screen-reader output (→ T-010).
+
+**Status: Review**
 
 ---
 

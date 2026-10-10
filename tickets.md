@@ -19,15 +19,24 @@ final candidate.
 | T-001 | M1 | Repository and Tauri/React foundation | Rob (coordinator) | Low | Standard | Done |
 | T-002 | M2 | SQLite schema, migrations and typed data layer | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
 | T-003 | M1 | App shell, design system, navigation and theme | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | Review |
-| T-004 | M2 | Task management (CRUD, filters, search) | Maya (`gpt-6-luna`) | Medium | Gold | To do |
-| T-005 | M3 | Project organization | Maya (`gpt-6-luna`) | Medium | Standard | To do |
-| T-006 | M3 | Today dashboard | Maya (`gpt-6-luna`) | Medium | Standard | To do |
-| T-007 | M4 | Quick notes | Maya (`gpt-6-luna`) | Low | Standard | To do |
-| T-008 | M4 | Focus timer and session history | Josh (`gpt-6.1-sol`) | High | Gold | To do |
-| T-009 | M5 | Settings and JSON backup export | Josh (`gpt-6.1-sol`) | Medium | Gold | To do |
-| T-010 | M6 | Independent review, accessibility and test gaps | Laura (`gpt-6.1-sol`) | Medium | Standard | To do |
-| T-011 | M6 | Architecture review of gold data boundaries | Juan (`gpt-6-luna`) | Medium | Gold | To do |
+| T-004 | M2 | Task management (CRUD, filters, search) | Maya (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
+| T-005 | M3 | Project organization | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
+| T-006 | M3 | Today dashboard | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
+| T-007 | M4 | Quick notes | Maya (`mimo-v2.6-flash-free`*) | Low | Standard | Review |
+| T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | To do |
+| T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
+| T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
+| T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
 | T-012 | M6 | Build, packaging and release verification | Rob (coordinator) | Medium | Standard | To do |
+
+\* Model deviation, recorded per AGENTS.md "Report unavailable settings": the preferred
+`gpt-6.1-sol` / `gpt-6-luna` failed at launch with **"Insufficient account funds"**, so all
+specialists run on the free model `opencode/mimo-v2.6-flash-free`. The requested effort
+settings (`medium`/`high`/`max`) are **not exposed by this harness** — effort is
+unverified/default for every worker. Role skills named in AGENTS.md
+(`ticket-table`, `clean-code-typescript`, `db-migration-discipline`, `code-review`,
+`accessibility-wcag`, …) are not installed here; every worker reported applying their
+stated practices manually instead.
 
 Dependency chain: T-001 → (T-002 ∥ T-003) → T-004 → (T-005 ∥ T-006) → T-007 ∥ T-008 →
 T-009 → (T-010 ∥ T-011) → T-012. No ticket starts while blocked.
@@ -173,7 +182,20 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 5. Rows are keyboard operable; dialogs trap focus and close with Escape.
 6. Unit tests for filter/search/pure task logic are green.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Maya): `npm run typecheck` → exit 0 (zero errors, whole tree);
+  `npx vitest run src/features/tasks` → **15/15 passed**.
+- Delivered: `taskHelpers.ts` (+15 tests), `TaskDialog`, `TaskList`, `TaskFilters`,
+  `TaskPriorityBadge`, `TasksPage`, `index.ts` barrel with the required stable exports.
+- Filter/search semantics live only in `src/data/repositories/tasks.ts` (component passes
+  `TaskFilter` straight through) — no duplicated filtering logic.
+- Coordinator re-run (2026-10-10): `npm run typecheck` exit 0; `npm test` →
+  **107/107 passed (7 files)**; `npm run build` exit 0 (`TasksPage` code-split, 67 kB).
+- Not yet verified: in-app interaction and restart persistence (needs native run → T-012);
+  screen-reader output (→ T-010).
+
+**Status: Review**
 
 ---
 
@@ -241,7 +263,21 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 3. Delete requires confirmation; empty states and keyboard navigation covered.
 4. Unit tests for the debounce/search helpers are green.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Worker (Maya): `npm run typecheck` → exit 0; `npx vitest run src/features/notes` →
+  first run 26/28 (2 genuine bugs found by tests: pending-state after `cancel()`,
+  and a rolling-hour timestamp bug) → fixed at the root → **28/28 passed**.
+- Delivered: `autosave.ts` (500ms debounce, cancel/flush/retry, tested with fake timers),
+  `noteSearch.ts`, `noteTime.ts`, `NoteList`, `NoteEditor`, `NotesPage`, `index.ts`,
+  3 test files.
+- Search delegates to `data.notes.list(query)` (SQL `LIKE` over title+content) — not
+  duplicated in the UI.
+- Coordinator re-run (2026-10-10): full `npm test` → **107/107 passed**; typecheck exit 0;
+  `npm run build` exit 0 (`NotesPage` code-split).
+- Not yet verified: live auto-save in a running app and restart persistence (→ T-012).
+
+**Status: Review**
 
 ---
 

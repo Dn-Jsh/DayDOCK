@@ -20,6 +20,9 @@
  *   still completes on the database side, and if newer keystrokes were waiting
  *   on the timer (or on that in-flight write) exactly one final detached write
  *   runs when it settles — cancel never drops content, it only detaches the UI.
+ * - `reset()` undoes `cancel()` for a cleanup that is followed by a fresh
+ *   setup. React StrictMode double-invokes the mount effect exactly that way,
+ *   and without the reset every editor would be born detached (T-013 Major #1).
  */
 
 /** Debounce window before a change is written to SQLite. */
@@ -32,6 +35,14 @@ export interface AutoSaver {
   schedule(): void;
   /** Runs the pending change immediately (Retry after a failed save). */
   runNow(): void;
+  /**
+   * Re-attaches after a cleanup that is followed by a new setup — what
+   * React StrictMode's double-invoked mount effect produces
+   * (setup → cleanup → setup). Undoes `cancel()` so later `schedule()` and
+   * `runNow()` calls actually write again. Call it at the START of the effect
+   * setup, before returning the cleanup.
+   */
+  reset(): void;
   /** Stops the pending timer and detaches status reporting (unmount/note switch). */
   cancel(): void;
   /** True while a change exists that the database has not confirmed yet. */
@@ -132,13 +143,36 @@ export function createAutoSaver({
       if (!dirty && status !== "error") return;
       start();
     },
+    reset(): void {
+      /* StrictMode runs the mount effect as setup → cleanup → setup; without
+         this re-arm the cleanup's cancel() would leave the saver detached
+         forever, turning every later schedule()/runNow() into a silent no-op
+         while the UI still claims "Saved" (T-013 Major #1). */
+      detached = false;
+      if (inFlight) {
+        /* A write is still running: it stays the newest generation (cancel()
+           no longer bumps it), so its completion reports status again now
+           that the saver is attached. Nothing else may change under it. */
+        return;
+      }
+      /* No write in flight: no completion can be pending, so stale flags are
+         safe to clear and the generation counter starts fresh. */
+      finalWritePending = false;
+      generation = 0;
+      /* A change that was still dirty when cancel() cleared its timer must
+         get a new one — reset() may never strand a draft. */
+      if (dirty && timer === null) {
+        timer = setTimeout(start, delayMs);
+      }
+    },
     cancel(): void {
       detached = true;
       clearTimer();
-      /* Invalidate any in-flight completion so it cannot report status. */
-      generation += 1;
-      /* The newest change never reached `save()` (its write is still running or
-         its timer never fired): queue exactly one final detached write. */
+      /* `detached` alone keeps any in-flight completion from reporting status;
+         the generation counter stays untouched so a later reset() still
+         recognises that write as the newest one and can let it report.
+         If that write never picked up the newest change, queue exactly one
+         final detached write for it to run when it settles. */
       if (inFlight && dirty) {
         finalWritePending = true;
       }

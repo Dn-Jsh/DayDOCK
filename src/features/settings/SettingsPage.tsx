@@ -4,6 +4,7 @@ import { useTheme } from "../../app/theme";
 import type { AppSettings, ThemeMode } from "../../data/contracts";
 import { ValidationError } from "../../data/contracts";
 import { exportBackupToFile } from "../../data/export";
+import { toErrorMessage } from "../../lib/errors";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { Button } from "../../components/ui/button";
 import { ErrorState } from "../../components/ui/error-state";
@@ -33,13 +34,8 @@ const THEME_CHOICES: ReadonlyArray<{ value: ThemeMode; label: string }> = [
   { value: "light", label: "Light" },
 ];
 
-/** DataError/ValidationError already carry user-safe messages; fall back anyway. */
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return "The change could not be saved.";
-}
+/** Fallback when an error carries no usable message (data-layer errors do). */
+const ERROR_FALLBACK_MESSAGE = "The change could not be saved.";
 
 function formatByteCount(bytes: number): string {
   return `${new Intl.NumberFormat().format(bytes)} bytes`;
@@ -94,7 +90,7 @@ export default function SettingsPage() {
       setLoadError(null);
     } catch (error: unknown) {
       if (requestId !== loadRequestRef.current) return;
-      setLoadError(toErrorMessage(error));
+      setLoadError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
@@ -113,7 +109,7 @@ export default function SettingsPage() {
       try {
         await setTheme(next);
       } catch (error: unknown) {
-        setThemeError(toErrorMessage(error));
+        setThemeError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
       }
     },
     [setTheme],
@@ -133,7 +129,7 @@ export default function SettingsPage() {
           setDurationFieldErrors(error.fieldErrors);
           setDurationStatus(null);
         } else {
-          setDurationSaveError(toErrorMessage(error));
+          setDurationSaveError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
         }
         return;
       }
@@ -156,7 +152,7 @@ export default function SettingsPage() {
         if (error instanceof ValidationError) {
           setDurationFieldErrors(error.fieldErrors);
         } else {
-          setDurationSaveError(toErrorMessage(error));
+          setDurationSaveError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
         }
       } finally {
         setDurationSaving(false);
@@ -197,7 +193,7 @@ export default function SettingsPage() {
           : `Backup saved to ${result.path} (${formatByteCount(result.bytes)}).`,
       );
     } catch (error: unknown) {
-      setExportError(toErrorMessage(error));
+      setExportError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
     } finally {
       setExporting(false);
     }
@@ -228,9 +224,14 @@ export default function SettingsPage() {
   }
 
   const storedDuration = settings?.focusDurationMinutes ?? MIN_FOCUS_MINUTES;
-  const presetValue = (FOCUS_DURATION_PRESETS as readonly number[]).includes(storedDuration)
+  /* A stored duration outside the presets renders the Radix placeholder
+     ("Custom…"): `value={null}` is Radix's documented "reset to placeholder"
+     semantics, while `value=""` would leave the trigger without a label. */
+  const presetValue: string | null = (FOCUS_DURATION_PRESETS as readonly number[]).includes(
+    storedDuration,
+  )
     ? String(storedDuration)
-    : "";
+    : null;
 
   return (
     <>
@@ -289,6 +290,8 @@ export default function SettingsPage() {
           <div className="mt-3 flex flex-col gap-3">
             <SelectField
               label="Preset durations"
+              /* `null` for a non-preset duration shows the "Custom…"
+                 placeholder (SelectField normalizes `null` internally). */
               value={presetValue}
               onValueChange={handlePresetChange}
               options={presetOptions}

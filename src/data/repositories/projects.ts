@@ -122,7 +122,20 @@ async function remove(id: number): Promise<void> {
   if (existing === null) {
     throw notFoundError("Project");
   }
-  // Unassign first: tasks survive project deletion, they are never deleted here.
+  /* Unassign first: tasks survive project deletion, they are never deleted
+     here. These are deliberately two ordered statements rather than a fake
+     transaction: tauri-plugin-sql 2.5.0 exposes no transaction API — each
+     call runs `sqlx::query` against a connection POOL (commands.rs `execute`
+     → wrapper.rs `pool.execute`), so `BEGIN` in one call and `COMMIT` in
+     another can land on different pooled connections, and one multi-statement
+     string cannot carry both statements' bound parameters through a single
+     prepared-statement execution. Unassign-then-delete is the safe order: a
+     failure between the two leaves the project still present with unassigned
+     tasks (benign and retryable) and can never delete or strand a task.
+     Foreign-key `ON DELETE` cascades are not an alternative either:
+     `PRAGMA foreign_keys` is per-connection, so it cannot be enabled
+     reliably through the pool — this is the "inert pragma" the review
+     noted, documented instead of faked. */
   await execute("UPDATE tasks SET project_id = NULL WHERE project_id = ?", [id]);
   await execute("DELETE FROM projects WHERE id = ?", [id]);
 }

@@ -212,6 +212,112 @@ describe("createAutoSaver", () => {
     await flushPromises();
     expect(saver.hasPendingChanges()).toBe(false);
   });
+
+  it("reset() re-attaches after cancel() so later changes write again", async () => {
+    const save = vi.fn(async () => {});
+    const statuses: SaveStatus[] = [];
+    const saver = createAutoSaver({
+      save,
+      onStatusChange: (status) => statuses.push(status),
+    });
+
+    saver.schedule();
+    saver.cancel();
+    expect(saver.hasPendingChanges()).toBe(false);
+
+    /* What StrictMode's second effect setup does: re-arm, then behave fresh. */
+    saver.reset();
+    saver.schedule();
+    expect(saver.hasPendingChanges()).toBe(true);
+
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS);
+    expect(save).toHaveBeenCalledTimes(1);
+    await flushPromises();
+    expect(saver.status).toBe("saved");
+    expect(statuses).toEqual(["pending", "saving", "saved"]);
+  });
+
+  it("reset() re-arms a dirty change whose timer cancel() cleared", async () => {
+    const save = vi.fn(async () => {});
+    const saver = createAutoSaver({ save });
+
+    saver.schedule(); /* dirty, debounce armed */
+    saver.cancel(); /* timer cleared, saver detached */
+    saver.reset();
+
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS);
+    expect(save).toHaveBeenCalledTimes(1); /* the draft was never stranded */
+    await flushPromises();
+    expect(saver.status).toBe("saved");
+  });
+
+  it("reset() lets an in-flight write report its result after re-attaching", async () => {
+    let resolveWrite!: () => void;
+    const save = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveWrite = resolve;
+        }),
+    );
+    const statuses: SaveStatus[] = [];
+    const saver = createAutoSaver({
+      save,
+      onStatusChange: (status) => statuses.push(status),
+    });
+
+    saver.schedule();
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS);
+    expect(saver.status).toBe("saving");
+
+    /* Cleanup with the write still running, then a fresh setup. */
+    saver.cancel();
+    saver.reset();
+
+    resolveWrite();
+    await flushPromises();
+    expect(saver.status).toBe("saved");
+    expect(statuses).toEqual(["pending", "saving", "saved"]);
+  });
+
+  it("reset() keeps the queued final write and now reports it", async () => {
+    let resolveFirst!: () => void;
+    const writeOrder: string[] = [];
+    let content = "first";
+    const save = vi
+      .fn<() => Promise<void>>()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            writeOrder.push(content);
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(async () => {
+        writeOrder.push(content);
+      });
+    const statuses: SaveStatus[] = [];
+    const saver = createAutoSaver({
+      save,
+      onStatusChange: (status) => statuses.push(status),
+    });
+
+    saver.schedule();
+    vi.advanceTimersByTime(AUTOSAVE_DELAY_MS); /* "first" is in flight */
+
+    content = "second";
+    saver.schedule(); /* newer change, timer armed */
+    saver.cancel(); /* cleanup before the timer fires */
+    saver.reset(); /* fresh setup re-attaches */
+
+    resolveFirst();
+    await flushPromises();
+
+    /* The queued final write ran with the newest content — and, unlike the
+       detached path, its success is reported to the live component. */
+    expect(writeOrder).toEqual(["first", "second"]);
+    expect(saver.status).toBe("saved");
+    expect(statuses).toEqual(["pending", "saving", "pending", "saving", "saved"]);
+  });
 });
 
 describe("saveStatusLabel", () => {

@@ -16,9 +16,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import { FieldError } from "../../components/ui/field-error";
 import { Input } from "../../components/ui/input";
 import { SelectField } from "../../components/ui/select";
 import { Textarea } from "../../components/ui/textarea";
+import { toErrorMessage } from "../../lib/errors";
 
 export interface TaskDialogProps {
   open: boolean;
@@ -75,12 +77,7 @@ function priorityFrom(value: string): Priority {
   return value === "low" || value === "high" ? value : "medium";
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return "The task could not be saved.";
-}
+const SAVE_ERROR = "The task could not be saved.";
 
 /**
  * The one create/edit dialog for tasks (title + optional description,
@@ -145,7 +142,7 @@ export function TaskDialog({ open, onOpenChange, task, projects, onSaved }: Task
           document.getElementById(fieldIds[firstInvalid])?.focus();
         }
       } else {
-        setFormError(toErrorMessage(error));
+        setFormError(toErrorMessage(error, SAVE_ERROR));
       }
     } finally {
       setSaving(false);
@@ -191,9 +188,7 @@ export function TaskDialog({ open, onOpenChange, task, projects, onSaved }: Task
                 autoComplete="off"
               />
               {fieldErrors.title ? (
-                <p id={errorId("title")} className="text-xs text-destructive">
-                  {fieldErrors.title}
-                </p>
+                <FieldError id={errorId("title")}>{fieldErrors.title}</FieldError>
               ) : null}
             </div>
 
@@ -211,9 +206,7 @@ export function TaskDialog({ open, onOpenChange, task, projects, onSaved }: Task
                 aria-describedby={describedBy("description")}
               />
               {fieldErrors.description ? (
-                <p id={errorId("description")} className="text-xs text-destructive">
-                  {fieldErrors.description}
-                </p>
+                <FieldError id={errorId("description")}>{fieldErrors.description}</FieldError>
               ) : null}
             </div>
 
@@ -231,9 +224,7 @@ export function TaskDialog({ open, onOpenChange, task, projects, onSaved }: Task
                   aria-describedby={describedBy("dueDate")}
                 />
                 {fieldErrors.dueDate ? (
-                  <p id={errorId("dueDate")} className="text-xs text-destructive">
-                    {fieldErrors.dueDate}
-                  </p>
+                  <FieldError id={errorId("dueDate")}>{fieldErrors.dueDate}</FieldError>
                 ) : null}
               </div>
 
@@ -248,9 +239,7 @@ export function TaskDialog({ open, onOpenChange, task, projects, onSaved }: Task
                   invalid={invalid("priority")}
                 />
                 {fieldErrors.priority ? (
-                  <p id={errorId("priority")} className="text-xs text-destructive">
-                    {fieldErrors.priority}
-                  </p>
+                  <FieldError id={errorId("priority")}>{fieldErrors.priority}</FieldError>
                 ) : null}
               </div>
             </div>
@@ -266,9 +255,7 @@ export function TaskDialog({ open, onOpenChange, task, projects, onSaved }: Task
                 invalid={invalid("projectId")}
               />
               {fieldErrors.projectId ? (
-                <p id={errorId("projectId")} className="text-xs text-destructive">
-                  {fieldErrors.projectId}
-                </p>
+                <FieldError id={errorId("projectId")}>{fieldErrors.projectId}</FieldError>
               ) : null}
             </div>
 

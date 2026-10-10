@@ -2,11 +2,15 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { useData } from "../../app/DataProvider";
 import type { FocusState, Task } from "../../data/contracts";
 import { todayLocalDate } from "../../lib/date";
+import { toErrorMessage } from "../../lib/errors";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { Button } from "../../components/ui/button";
 import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { TaskList } from "../tasks";
+/* Direct module import (not the `../focus` barrel) so the Today page's lazy
+   chunk doesn't risk pulling FocusPage in — only the event constant is needed. */
+import { FOCUS_COMPLETION_EVENT } from "../focus/FocusCompletionWatcher";
 import { FocusSessionCard } from "./FocusSessionCard";
 import { QuickAddTask } from "./QuickAddTask";
 import { StatTile } from "./StatTile";
@@ -24,12 +28,8 @@ type Phase = "loading" | "ready" | "error";
 /** A session left open past midnight rolls over without a reload. */
 const DATE_REFRESH_MS = 60_000;
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return "The dashboard could not be loaded.";
-}
+/** Fallback copy when a failure carries no user-safe message of its own. */
+const LOAD_ERROR = "The dashboard could not be loaded.";
 
 interface TodaySectionProps {
   headingId: string;
@@ -105,7 +105,7 @@ export default function TodayPage() {
       setPhase("ready");
     } catch (caught) {
       if (!mountedRef.current || requestId !== requestRef.current) return;
-      const message = toErrorMessage(caught);
+      const message = toErrorMessage(caught, LOAD_ERROR);
       if (loadedRef.current) {
         /* Background refetch failed: keep the last good data and show a
            retryable banner rather than blanking a working page. */
@@ -147,6 +147,16 @@ export default function TodayPage() {
     };
   }, []);
 
+  /* The app-global watcher (T-014) completes sessions off the Focus page;
+     re-read on its event so this card never shows a phantom running session. */
+  useEffect(() => {
+    const refreshFocus = () => reload();
+    window.addEventListener(FOCUS_COMPLETION_EVENT, refreshFocus);
+    return () => {
+      window.removeEventListener(FOCUS_COMPLETION_EVENT, refreshFocus);
+    };
+  }, [reload]);
+
   const dueToday = selectDueToday(tasks, today);
   const overdue = selectOverdue(tasks, today);
   const completedToday = selectCompletedToday(tasks, today);
@@ -166,7 +176,7 @@ export default function TodayPage() {
         <div className="flex justify-start">
           <ErrorState
             title="Today could not be loaded"
-            message={loadError ?? "The dashboard could not be loaded."}
+            message={loadError ?? LOAD_ERROR}
             onRetry={retry}
           />
         </div>

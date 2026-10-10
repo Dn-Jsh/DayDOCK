@@ -13,7 +13,14 @@ import {
 
 export interface TaskFiltersProps {
   value: TaskFilter;
+  /** Applies a non-search filter change (selects, clears) immediately. */
   onChange: (next: TaskFilter) => void;
+  /**
+   * Reports raw search-box text as it is typed. The page keeps this value as
+   * its input draft and debounces the actual query, so typing renders at once
+   * while storage is hit once per pause instead of once per keystroke.
+   */
+  onQueryChange: (query: string) => void;
   projects: ProjectWithProgress[];
 }
 
@@ -33,9 +40,11 @@ const PRIORITY_OPTIONS: SelectOption[] = [
 /**
  * The filter bar: one search box plus status / priority / project selects.
  * It only edits the `TaskFilter` object — every query runs in the data layer
- * (`data.tasks.list(filter)`), so no filtering logic is duplicated here.
+ * (`data.tasks.list(filter)`), so no filtering logic is duplicated here. The
+ * search box reports text immediately (`onQueryChange`) while selects and
+ * clears commit through `onChange`; the page owns the debounce.
  */
-export function TaskFilters({ value, onChange, projects }: TaskFiltersProps) {
+export function TaskFilters({ value, onChange, onQueryChange, projects }: TaskFiltersProps) {
   const searchId = useId();
 
   const projectOptions: SelectOption[] = [
@@ -55,7 +64,7 @@ export function TaskFilters({ value, onChange, projects }: TaskFiltersProps) {
             id={searchId}
             type="search"
             value={value.query ?? ""}
-            onChange={(event) => onChange({ ...value, query: event.target.value })}
+            onChange={(event) => onQueryChange(event.target.value)}
             placeholder="Title or description…"
             autoComplete="off"
           />

@@ -15,6 +15,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import type { Backup, DayDockData, Project, ProjectWithProgress } from "./contracts";
 import { todayLocalDate } from "../lib/date";
+import { toErrorMessage } from "../lib/errors";
 
 /**
  * Written into `backup.app.version`. Mirrors the `version` field of
@@ -84,10 +85,7 @@ export function serializeBackup(backup: Backup): string {
 }
 
 function toUserSafeError(error: unknown, fallback: string): Error {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return new Error(error.message);
-  }
-  return new Error(fallback);
+  return new Error(toErrorMessage(error, fallback));
 }
 
 /**

@@ -12,6 +12,12 @@ mod migrations;
 /// Deliberately narrow: it only accepts `.json` targets and never touches the
 /// SQLite database, so the frontend can export data without gaining general
 /// filesystem access. Callers pass the already-serialized backup content.
+///
+/// The write is atomic: content goes to a temporary file in the same
+/// directory, which is then renamed over the target. A failed or interrupted
+/// write can therefore never leave a truncated backup at the final path
+/// (and can never touch the database file — the temp path is derived from an
+/// already-validated `.json` target).
 #[tauri::command]
 fn save_backup_file(path: String, contents: String) -> Result<(), String> {
     if !path.to_lowercase().ends_with(".json") {
@@ -20,7 +26,19 @@ fn save_backup_file(path: String, contents: String) -> Result<(), String> {
     if contents.len() > 100 * 1024 * 1024 {
         return Err("The backup is too large to write.".to_string());
     }
-    std::fs::write(&path, contents).map_err(|error| format!("Could not write the backup file: {error}"))
+
+    /* Same directory as the target, so the rename stays on one filesystem and
+       is atomic; the process id keeps temp names unique across runs. */
+    let temp_path = format!("{path}.tmp-{}", std::process::id());
+    std::fs::write(&temp_path, &contents).map_err(|error| {
+        let _ = std::fs::remove_file(&temp_path);
+        format!("Could not write the backup file: {error}")
+    })?;
+    std::fs::rename(&temp_path, &path).map_err(|error| {
+        /* Leave no stray temp file behind when the swap fails. */
+        let _ = std::fs::remove_file(&temp_path);
+        format!("Could not write the backup file: {error}")
+    })
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

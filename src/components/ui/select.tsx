@@ -11,7 +11,8 @@ export interface SelectOption {
 export interface SelectFieldProps {
   /** Visible label, associated with the trigger through `htmlFor`. */
   label: string;
-  value: string;
+  /** `null` selects nothing and shows the placeholder (normalized below). */
+  value: string | null;
   onValueChange: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
@@ -43,6 +44,12 @@ export function SelectField({
   const generatedId = useId();
   const triggerId = id ?? generatedId;
 
+  /* "Nothing selected" is expressed as `null` at our API, but this Radix
+     version only shows the placeholder for `""`/`undefined`
+     (`shouldShowPlaceholder`), and `undefined` would make the root
+     uncontrolled — so normalize to the controlled empty string. */
+  const radixValue = value ?? "";
+
   return (
     <div className={cn("flex w-full min-w-0 flex-col gap-1.5", className)}>
       <label
@@ -51,7 +58,7 @@ export function SelectField({
       >
         {label}
       </label>
-      <RadixSelect.Root value={value} onValueChange={onValueChange}>
+      <RadixSelect.Root value={radixValue} onValueChange={onValueChange}>
         <RadixSelect.Trigger
           id={triggerId}
           disabled={disabled}

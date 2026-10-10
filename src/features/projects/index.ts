@@ -14,7 +14,6 @@ export {
   formatTaskCount,
   projectPercent,
   summarizeProjectTasks,
-  toErrorMessage,
   type CreatedDateInfo,
   type ProjectProgressSummary,
 } from "./projectHelpers";

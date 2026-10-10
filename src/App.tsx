@@ -10,10 +10,16 @@
 import { DataProvider } from "./app/DataProvider";
 import { ThemeProvider } from "./app/theme";
 import { AppShell } from "./components/layout/AppShell";
+/* Direct module import (not the `./features/focus` barrel) so FocusPage keeps
+   its lazy route chunk — the barrel statically re-exports it. */
+import { FocusCompletionWatcher } from "./features/focus/FocusCompletionWatcher";
 
 export default function App() {
   return (
     <DataProvider>
+      {/* Completes a focus session whose deadline passed off the Focus page
+          (T-014): runs once the data layer loads and on navigation/focus/tick. */}
+      <FocusCompletionWatcher />
       <ThemeProvider>
         <AppShell />
       </ThemeProvider>

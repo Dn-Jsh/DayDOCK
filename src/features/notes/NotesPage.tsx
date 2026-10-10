@@ -2,18 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText } from "lucide-react";
 import { useData } from "../../app/DataProvider";
 import type { Note } from "../../data/contracts";
+import { toErrorMessage } from "../../lib/errors";
 import { PageHeader } from "../../components/layout/PageHeader";
+import { Button } from "../../components/ui/button";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
 import { NoteEditor } from "./NoteEditor";
 import { NoteList } from "./NoteList";
 
-/** Data-layer failures already carry a user-safe message; keep a fallback anyway. */
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") return error.message;
-  return "The local database could not be reached.";
-}
+/** Fallback copy when a failure carries no user-safe message of its own. */
+const DATABASE_ERROR = "The local database could not be reached.";
 
 /**
  * Quick notes (T-007): a two-pane list + auto-saving editor over the notes
@@ -51,7 +50,7 @@ export default function NotesPage() {
       });
     } catch (error: unknown) {
       if (requestId !== requestIdRef.current) return;
-      setLoadError(toErrorMessage(error));
+      setLoadError(toErrorMessage(error, DATABASE_ERROR));
     } finally {
       if (requestId === requestIdRef.current) setLoading(false);
     }
@@ -74,7 +73,7 @@ export default function NotesPage() {
       focusTitleRef.current = true;
       setLoadError(null);
     } catch (error: unknown) {
-      setLoadError(toErrorMessage(error));
+      setLoadError(toErrorMessage(error, DATABASE_ERROR));
     } finally {
       setCreating(false);
     }
@@ -113,8 +112,11 @@ export default function NotesPage() {
       setDeleteError(null);
       await refresh(query);
     } catch (error: unknown) {
-      /* Keep the dialog open; ConfirmDialog swallows the rejection for us. */
-      setDeleteError(toErrorMessage(error));
+      /* Re-throw so ConfirmDialog keeps itself open (its contract: the dialog
+         only closes after onConfirm resolves) and record the message for the
+         alert rendered next to it. */
+      setDeleteError(toErrorMessage(error, DATABASE_ERROR));
+      throw error;
     }
   }, [data, pendingDeleteId, query, refresh]);
 
@@ -123,6 +125,20 @@ export default function NotesPage() {
   return (
     <>
       <PageHeader title="Notes" subtitle="Quick plain-text notes with auto-save." />
+
+      {/* A refresh failure while notes are already on screen must not be
+          silent: keep the last good list and offer a retry (TodayPage pattern). */}
+      {loadError !== null && notes.length > 0 ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 border border-border bg-card px-3 py-2"
+        >
+          <p className="text-sm text-destructive">{loadError}</p>
+          <Button variant="secondary" size="sm" onClick={() => void refresh(query)}>
+            Retry
+          </Button>
+        </div>
+      ) : null}
 
       {loadError !== null && selectedNote === null && notes.length === 0 ? (
         <ErrorState message={loadError} title="Notes could not be loaded" onRetry={() => void refresh(query)} />
@@ -162,6 +178,18 @@ export default function NotesPage() {
         </div>
       )}
 
+      {/* Failed delete: ConfirmDialog stays open (confirmDelete re-throws),
+          and the message is surfaced above the dialog layer where the user
+          can actually see it — not stranded at the bottom of the page. */}
+      {deleteError !== null ? (
+        <div
+          role="alert"
+          className="fixed left-1/2 top-6 z-[60] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 border border-border bg-card px-3 py-2 text-sm text-destructive shadow-2xl"
+        >
+          {deleteError}
+        </div>
+      ) : null}
+
       <ConfirmDialog
         open={pendingDeleteNote !== null}
         onOpenChange={(open) => {
@@ -179,11 +207,6 @@ export default function NotesPage() {
         confirmLabel="Delete note"
         onConfirm={confirmDelete}
       />
-      {deleteError !== null ? (
-        <p role="alert" className="mt-3 text-sm text-destructive">
-          {deleteError}
-        </p>
-      ) : null}
     </>
   );
 }

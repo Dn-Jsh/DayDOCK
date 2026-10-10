@@ -1,8 +1,9 @@
 /**
  * Single access point to the local SQLite database.
  *
- * `Database.load` is called lazily at most once; the promise is cached so every
- * repository shares one connection and one migration run. Driver failures are
+ * `Database.load` is called lazily; a successful load is cached so every
+ * repository shares one connection and one migration run, while a failed load
+ * is *not* cached (Retry must genuinely re-attempt). Driver failures are
  * converted to `DataError` with a fixed, user-safe message — SQL text, bind
  * parameters and row content never appear in an error message.
  */
@@ -14,13 +15,18 @@ const DATABASE_URL = "sqlite:daydock.db";
 let databasePromise: Promise<Database> | null = null;
 
 /**
- * Opens (or returns the already-opening) database connection. The load is
- * attempted exactly once per app run; a failure is cached as a rejected
- * `DataError` so callers see one consistent error.
+ * Opens (or returns the already-opening) database connection. A successful
+ * load is cached for the app run so every repository shares one connection;
+ * a failure is converted to `DataError` and the cache slot is cleared inside
+ * the rejection handler, so the next call (the app-wide Retry button)
+ * genuinely re-attempts instead of re-awaiting the same rejection forever.
  */
 export function getDatabase(): Promise<Database> {
   if (databasePromise === null) {
     databasePromise = Database.load(DATABASE_URL).catch((error: unknown) => {
+      /* Never cache a rejected promise: clear the slot before rethrowing so
+         Retry re-runs `Database.load` rather than re-awaiting this failure. */
+      databasePromise = null;
       throw new DataError("Could not open the local database.", { cause: error });
     });
   }

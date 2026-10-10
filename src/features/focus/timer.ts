@@ -126,23 +126,55 @@ export function resetTimer(_state: FocusState | null): null {
 }
 
 /**
+ * The instant at which `state`'s accumulated elapsed time reaches its plan —
+ * the `endedAt` recorded for a completed session. Derived only from the
+ * stored timestamps:
+ *
+ *   deadline = startedAt + max(0, plannedDurationMs − elapsedBeforeMs)
+ *
+ * The current running segment began at `startedAt` with `elapsedBeforeMs`
+ * already banked, so the plan is reached `planned − elapsedBefore` into the
+ * segment: a session that ran straight through (`elapsedBeforeMs = 0`) ends
+ * exactly `plannedDurationMs` after its start, and a paused session ends at
+ * the point in its *current* segment where the banked + segment time added up
+ * to the plan. When `elapsedBeforeMs` already meets the plan (a pause that
+ * banked time at/over the deadline), the exact earlier instant is not stored,
+ * so it clamps to the segment start — the earliest instant consistent with
+ * the stored state.
+ */
+export function completionDeadlineMs(state: FocusState): number {
+  const startedAtMs = Date.parse(state.startedAt);
+  const remainingToPlanMs = Math.max(
+    0,
+    state.plannedDurationMs - Math.max(0, state.elapsedBeforeMs),
+  );
+  return startedAtMs + remainingToPlanMs;
+}
+
+/**
  * Re-derives the state at `nowMs` and detects completion.
  *
  * When `elapsedMs >= plannedDurationMs` the result carries the *completed*
  * session exactly once — `actualDurationMs` equals the planned duration (the
- * time past the deadline was sleep, not focus), `endedAt` is the tick's clock
- * reading, `startedAt` is kept from the state — and `state` is `null`. Callers
- * clear the persisted row; a subsequent tick over `null` yields no second
- * session, which is what makes completion idempotent.
+ * time past the deadline was sleep, not focus), `endedAt` is the deadline
+ * instant from `completionDeadlineMs` (the moment the plan was reached, *not*
+ * this tick's clock reading — detecting a session an hour after it finished
+ * must not rewrite its history), `startedAt` is kept from the state — and
+ * `state` is `null`. Callers clear the persisted row; a subsequent tick over
+ * `null` yields no second session, which is what makes completion idempotent.
  */
 export function tickTimer(state: FocusState | null, nowMs: number): FocusTickResult {
   if (state === null) return { state: null };
+  /* A paused session never auto-completes — the user controls it, even when
+     the plan was already banked at pause time. It completes on the first tick
+     after resume (or not at all, if it stays paused). */
+  if (state.status !== "running") return { state };
   if (elapsedMsOf(state, nowMs) < state.plannedDurationMs) return { state };
   return {
     state: null,
     completedSession: {
       startedAt: state.startedAt,
-      endedAt: toInstant(nowMs),
+      endedAt: toInstant(completionDeadlineMs(state)),
       plannedDurationMs: state.plannedDurationMs,
       actualDurationMs: state.plannedDurationMs,
       completed: true,

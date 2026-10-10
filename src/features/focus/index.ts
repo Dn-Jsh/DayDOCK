@@ -6,6 +6,11 @@
  * is consumed by the Today dashboard (T-006) to render the active session, so
  * its name and shape must not change. The pure timing rules are exported too
  * so tests and other tickets can use them without reaching into internals.
+ *
+ * T-014 adds the app-global completion path: `completeFocusSessionIfDue`
+ * (the one implementation of the completion write) and the
+ * `<FocusCompletionWatcher />` safety net, mounted once inside `DataProvider`
+ * by the app shell — see the watcher's file header for the exact mount line.
  */
 export { default, default as FocusPage } from "./FocusPage";
 export { FocusTimerPanel, type FocusTimerPanelProps, type FocusTimerStatus } from "./FocusTimerPanel";
@@ -23,3 +28,8 @@ export {
   type FocusTickResult,
 } from "./timer";
 export { formatSessionStart, sessionDayLabel } from "./sessionTime";
+export {
+  completeFocusSessionIfDue,
+  type FocusCompletionOutcome,
+} from "./completeSession";
+export { FocusCompletionWatcher, FOCUS_COMPLETION_EVENT } from "./FocusCompletionWatcher";

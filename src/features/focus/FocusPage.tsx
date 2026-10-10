@@ -1,12 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useData } from "../../app/DataProvider";
-import type {
-  FocusSession,
-  FocusSessionInput,
-  FocusState,
-  Task,
-} from "../../data/contracts";
+import type { FocusSession, FocusState, Task } from "../../data/contracts";
 import { formatClock } from "../../lib/date";
+import { toErrorMessage } from "../../lib/errors";
 import { PageHeader } from "../../components/layout/PageHeader";
 import { ConfirmDialog } from "../../components/ui/confirm-dialog";
 import { ErrorState } from "../../components/ui/error-state";
@@ -14,13 +10,13 @@ import { LoadingState } from "../../components/ui/loading-state";
 import { SelectField, type SelectOption } from "../../components/ui/select";
 import { FocusSessionList } from "./FocusSessionList";
 import { FocusTimerPanel } from "./FocusTimerPanel";
+import { completeFocusSessionIfDue } from "./completeSession";
 import {
   computeFocusProgress,
   pauseTimer,
   resetTimer,
   resumeTimer,
   startTimer,
-  tickTimer,
 } from "./timer";
 
 /** Preset durations offered by the selector (valid range is 1–180 minutes). */
@@ -36,32 +32,8 @@ const MILLISECONDS_PER_MINUTE = 60_000;
 const CLOCK_REFRESH_MS = 500;
 /** Minimum spacing between minute-boundary announcements of the live region. */
 const MINUTE_ANNOUNCE_INTERVAL_MS = 60_000;
-
-/**
- * Exactly-once bookkeeping for the natural-completion write:
- * `focusSessions.create(...)` runs at most once per session, and a retry after
- * a failed `focusState.clear()` finishes the job instead of duplicating the row.
- */
-interface CompletionBookkeeping {
-  /** The detected completion awaiting its write; `null` when none is pending. */
-  session: FocusSessionInput | null;
-  /** Set as soon as the history row exists so a retry never re-creates it. */
-  created: FocusSession | null;
-  /** True while a completion write is in flight (blocks concurrent writes). */
-  running: boolean;
-}
-
-const FRESH_COMPLETION: CompletionBookkeeping = {
-  session: null,
-  created: null,
-  running: false,
-};
-
-/** DataError/ValidationError already carry user-safe messages; fall back anyway. */
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") return error.message;
-  return "The local database could not be reached.";
-}
+/** Fallback when an error carries no usable message (data-layer errors do). */
+const ERROR_FALLBACK_MESSAGE = "The local database could not be reached.";
 
 /** Select value → task id (`"none"`/invalid → `null`). */
 function toTaskId(value: string): number | null {
@@ -83,9 +55,11 @@ function ensureTaskOption(options: SelectOption[], taskId: number | null): Selec
  *
  * Responsibilities: load settings + `focus_state` + history, re-derive the
  * remaining time from the wall clock on every render, persist every transition
- * through the data layer (so a running session survives restart), and write a
- * completed session to `focus_sessions` exactly once. All timing rules live in
- * the pure `timer.ts`; this component only orchestrates.
+ * through the data layer (so a running session survives restart), and surface
+ * completion errors for the shared helper in `completeSession.ts`, which
+ * writes a completed session to `focus_sessions` exactly once app-globally.
+ * All timing rules live in the pure `timer.ts`; this component only
+ * orchestrates.
  */
 export default function FocusPage() {
   const data = useData();
@@ -106,8 +80,7 @@ export default function FocusPage() {
 
   /** Stale-response guard for the load effect (StrictMode + Retry). */
   const loadRequestRef = useRef(0);
-  const completionRef = useRef<CompletionBookkeeping>({ ...FRESH_COMPLETION });
-  /** Latest history rows without waiting for a render (completion dedupe). */
+  /** Latest history rows without waiting for a render (list merge on completion). */
   const sessionsRef = useRef<FocusSession[]>([]);
   /** Last clock reading that touched the live region (throttle timestamps). */
   const lastAnnouncedAtRef = useRef(0);
@@ -139,11 +112,10 @@ export default function FocusPage() {
       setLoadError(null);
       setActionError(null);
       setCompletionError(null);
-      completionRef.current = { ...FRESH_COMPLETION };
       lastAnnouncedMinuteKeyRef.current = null;
     } catch (error: unknown) {
       if (requestId !== loadRequestRef.current) return;
-      setLoadError(toErrorMessage(error));
+      setLoadError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
     } finally {
       if (requestId === loadRequestRef.current) setLoading(false);
     }
@@ -220,7 +192,7 @@ export default function FocusPage() {
         setActionError(null);
         return true;
       } catch (error: unknown) {
-        setActionError(toErrorMessage(error));
+        setActionError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
         return false;
       } finally {
         setBusy(false);
@@ -231,7 +203,6 @@ export default function FocusPage() {
 
   const handleStart = useCallback(async () => {
     if (busy || focusState !== null) return;
-    completionRef.current = { ...FRESH_COMPLETION };
     const next = startTimer(
       Date.now(),
       durationMinutes * MILLISECONDS_PER_MINUTE,
@@ -266,7 +237,6 @@ export default function FocusPage() {
   const handleReset = useCallback(async () => {
     if (busy || focusState === null) return;
     if (await applyState(resetTimer(focusState))) {
-      completionRef.current = { ...FRESH_COMPLETION };
       announce("Session reset — the current session was discarded.");
     }
   }, [busy, focusState, applyState, announce]);
@@ -288,7 +258,7 @@ export default function FocusPage() {
         setDurationMinutes(updated.focusDurationMinutes);
         setActionError(null);
       } catch (error: unknown) {
-        setActionError(toErrorMessage(error));
+        setActionError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
       } finally {
         setBusy(false);
       }
@@ -299,61 +269,54 @@ export default function FocusPage() {
   /* ---------------------------------------------------------- completion -- */
 
   /**
-   * Writes the pending completion: create the history row (once), then clear
-   * `focus_state`. Order matters — a crash between the two leaves the state to
-   * re-complete on the next launch, and the `created` marker (plus a dedupe
-   * against the loaded history) keeps that from producing a second row.
+   * Runs the shared completion helper (`completeSession.ts` — the one
+   * implementation, also driven app-globally by the completion watcher) and
+   * applies the result to this page. The helper creates the history row
+   * first, then clears `focus_state`, deduping against freshly loaded
+   * history, so a crash between the two writes re-completes on retry
+   * instead of duplicating the row.
    */
-  const persistCompletion = useCallback(async (): Promise<void> => {
-    const book = completionRef.current;
-    if (book.running || book.session === null) return;
-    book.running = true;
-    try {
-      if (book.created === null) {
-        const session = book.session;
-        const alreadyStored = sessionsRef.current.find(
-          (row) =>
-            row.startedAt === session.startedAt &&
-            row.plannedDurationMs === session.plannedDurationMs,
-        );
-        book.created = alreadyStored ?? (await data.focusSessions.create(session));
-      }
-      await data.focusState.clear();
-      const created = book.created;
-      book.session = null;
-      if (created !== null) {
+  const runCompletion = useCallback(
+    async (state: FocusState): Promise<void> => {
+      try {
+        const outcome = await completeFocusSessionIfDue(data, state, Date.now());
+        /* `null` = not due, or another caller (the watcher / a concurrent
+           tick) owns this completion; it applies its own result. */
+        if (outcome === null) return;
         replaceSessions([
-          created,
-          ...sessionsRef.current.filter((row) => row.id !== created.id),
+          outcome.session,
+          ...sessionsRef.current.filter((row) => row.id !== outcome.session.id),
         ]);
+        setFocusState(null);
+        setCompletionError(null);
+        announce("Focus session complete.");
+      } catch (error: unknown) {
+        /* `focus_state` still holds the session (the helper clears it only
+           after the history row exists), so Retry re-runs the helper and
+           finishes the job without writing the row a second time. */
+        setCompletionError(toErrorMessage(error, ERROR_FALLBACK_MESSAGE));
       }
-      setFocusState(null);
-      setCompletionError(null);
-      announce("Focus session complete.");
-    } catch (error: unknown) {
-      /* `book.session` and `book.created` survive, so Retry (or the next tick)
-         finishes the job without writing the row a second time. */
-      setCompletionError(toErrorMessage(error));
-    } finally {
-      book.running = false;
-    }
-  }, [data, announce, replaceSessions]);
+    },
+    [data, announce, replaceSessions],
+  );
 
   /* The clock keeps re-running this while the deadline has passed but the
-     write failed; `completionError` halts automatic retries until Retry. */
+     write failed; `completionError` halts automatic retries until Retry.
+     Before the deadline the helper answers `null` in memory — no I/O.
+     `nowMs` is a deliberate dependency: every clock tick re-checks, so a
+     completion the helper just handed to another caller (or a transient
+     failure) is picked up without waiting for a state change. */
   useEffect(() => {
-    if (focusState === null || focusState.status !== "running") return;
-    if (completionError !== null) return;
-    const result = tickTimer(focusState, nowMs);
-    if (result.completedSession === undefined) return;
-    completionRef.current.session = result.completedSession;
-    void persistCompletion();
-  }, [focusState, nowMs, completionError, persistCompletion]);
+    if (focusState === null || completionError !== null) return;
+    void runCompletion(focusState);
+  }, [focusState, nowMs, completionError, runCompletion]);
 
   const handleRetryCompletion = useCallback(() => {
     setCompletionError(null);
-    void persistCompletion();
-  }, [persistCompletion]);
+    if (focusState !== null) {
+      void runCompletion(focusState);
+    }
+  }, [focusState, runCompletion]);
 
   /* -------------------------------------------------------------- options -- */
 

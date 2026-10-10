@@ -159,7 +159,10 @@ describe("tickTimer", () => {
     /* The extra hour was sleep, not focus: the plan is what was actually run. */
     expect(result.completedSession?.actualDurationMs).toBe(PLANNED_25_MIN);
     expect(result.completedSession?.plannedDurationMs).toBe(PLANNED_25_MIN);
-    expect(result.completedSession?.endedAt).toBe(iso(sleptTo));
+    /* endedAt is the deadline instant (start + plan), NOT this tick's clock
+       reading — detecting the completion an hour late must not rewrite
+       history (T-014 review finding). */
+    expect(result.completedSession?.endedAt).toBe(iso(T0 + PLANNED_25_MIN));
     expect(result.completedSession?.startedAt).toBe(iso(T0));
     expect(result.completedSession?.completed).toBe(true);
     expect(result.completedSession?.taskId).toBe(7);
@@ -170,11 +173,42 @@ describe("tickTimer", () => {
     expect(second.completedSession).toBeUndefined();
   });
 
+  it("derives endedAt from the stored segments when pauses shifted the deadline", () => {
+    /* Start T0, pause after 10 minutes, resume at T0 + 40: the remaining
+       15 minutes run out at T0 + 55, no matter when the tick notices. */
+    const state = runningState({
+      startedAt: iso(T0 + 40 * MINUTE),
+      elapsedBeforeMs: 10 * MINUTE,
+    });
+    const result = tickTimer(state, T0 + 62 * MINUTE);
+    expect(result.completedSession?.endedAt).toBe(iso(T0 + 55 * MINUTE));
+    expect(result.completedSession?.actualDurationMs).toBe(PLANNED_25_MIN);
+  });
+
+  it("clamps endedAt to the segment start when the plan was already banked", () => {
+    /* Pause banked exactly the plan: the true deadline was inside an earlier
+       segment and is not stored, so the segment start is the earliest
+       instant consistent with the state (documented in completionDeadlineMs). */
+    const state = runningState({
+      startedAt: iso(T0 + 30 * MINUTE),
+      elapsedBeforeMs: PLANNED_25_MIN,
+    });
+    const result = tickTimer(state, T0 + 31 * MINUTE);
+    expect(result.completedSession?.endedAt).toBe(iso(T0 + 30 * MINUTE));
+  });
+
   it("never completes a paused session, even far past the deadline", () => {
     const paused = pauseTimer(runningState(), T0 + 20 * MINUTE);
     const result = tickTimer(paused, T0 + 10 * HOUR);
     expect(result.state).toBe(paused);
     expect(result.completedSession).toBeUndefined();
+
+    /* Even when the pause banked the entire plan (paused right at/after the
+       deadline), the paused state must not complete until it resumes. */
+    const banked = runningState({ status: "paused", elapsedBeforeMs: PLANNED_25_MIN });
+    const bankedResult = tickTimer(banked, T0 + 10 * HOUR);
+    expect(bankedResult.state).toBe(banked);
+    expect(bankedResult.completedSession).toBeUndefined();
   });
 
   it("tick over a null state stays null and yields no session", () => {

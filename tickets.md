@@ -25,9 +25,11 @@ final candidate.
 | T-007 | M4 | Quick notes | Maya (`mimo-v2.6-flash-free`*) | Low | Standard | Review |
 | T-008 | M4 | Focus timer and session history | Josh (`mimo-v2.6-flash-free`*) | High | Gold | Review |
 | T-009 | M5 | Settings and JSON backup export | Josh (`mimo-v2.6-flash-free`*) | Medium | Gold | Review |
-| T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | To do |
-| T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | To do |
+| T-010 | M6 | Independent review, accessibility and test gaps | Laura (`mimo-v2.6-flash-free`*) | Medium | Standard | Review (delivered; re-approval pending after T-013/T-014) |
+| T-011 | M6 | Architecture review of gold data boundaries | Juan (`mimo-v2.6-flash-free`*) | Medium | Gold | Review (delivered; re-approval pending after T-013/T-014) |
 | T-012 | M6 | Build, packaging and release verification | Rob (coordinator) | Medium | Standard | To do |
+| T-013 | M6 | Frontend repair batch from review findings | Maya (`mimo-v2.6-flash-free`*) | Medium | Standard | In progress |
+| T-014 | M6 | Data/focus repair batch from review findings | Josh (`mimo-v2.6-flash-free`*) | High | Gold | In progress |
 
 \* Model deviation, recorded per AGENTS.md "Report unavailable settings": the preferred
 `gpt-6.1-sol` / `gpt-6-luna` failed at launch with **"Insufficient account funds"**, so all
@@ -367,8 +369,10 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 
 1. Theme and focus duration edits persist to SQLite and take effect immediately.
 2. Export opens a native save dialog (default name `daydock-backup-YYYY-MM-DD.json`)
-   and writes valid JSON containing `app`, `exportedAt`, `version`, `projects`,
-   `tasks`, `notes`, `focusSessions`, `settings`.
+   and writes valid JSON containing `app { name, version, schema }`, `exportedAt`,
+   `projects`, `tasks`, `notes`, `focusSessions`, `settings`. (Amended 2026-10-10
+   per T-010 finding #6: the original text listed a top-level `version` key; the
+   implemented and test-pinned shape carries the version at `app.version`.)
 3. Exported payload round-trips through `JSON.parse` in a unit test and includes every
    stored row (count verified against the repositories).
 4. The UI states plainly that export is a backup and that **restore/import is not
@@ -416,7 +420,40 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 4. No secrets, note contents or credentials in logs/errors; export contains only the
    documented tables.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Review delivered 2026-10-10 (Laura, candidate `1e10d02`/clean tree): verdict
+  **REQUEST CHANGES** — 3 Major, 4 Minor, 5 Nit findings; security/privacy section
+  clean (SQL confinement, no network/eval, no secrets, least-privilege capabilities,
+  export payload exact-key verified); data-loss pass except Major #1.
+- Major findings (repaired under T-013/T-014):
+  1. **Note auto-save dead under StrictMode** — cleanup-only effect
+     (`NoteEditor.tsx:72-77`) calls `saver.cancel()` which sets `detached = true`
+     irreversibly; React 19 StrictMode dev double-invokes effects, so every editor
+     is born detached, `schedule()`/`runNow()` no-op, status stays `idle` → UI shows
+     **"Saved"** while nothing is written (empirically probe-verified by reviewer AND
+     coordinator: typed content is absent from `daydock.db` after auto-save claimed
+     success — `notes.content` empty, `updated_at` = create time).
+  2. **Focus completion not app-global** — a session whose deadline passes off the
+     Focus page is written only on next Focus mount; `endedAt` stamped at detection
+     time; Today card shows a phantom running session meanwhile.
+  3. **Focus ring contrast below WCAG AA** — measured 2.44–2.56:1 (needs ≥3:1);
+     `--ring` tokens in `src/index.css`.
+- Minors: rejected-promise cache makes Retry inert (`db.ts`/`data/index.ts`);
+  NotesPage delete-failure closes the dialog + silent refresh errors; T-009 AC2
+  `version`-key wording mismatch; light `--muted-foreground` on `--secondary`
+  measures 4.40:1 (needs ≥4.5:1).
+- Nits: project delete non-transactional + FK pragma inert; `Custom…` Select
+  placeholder unverified; missing `role="alert"` on some field errors; CSP lacks
+  `form-action`; task search fires 3 queries per keystroke (no debounce).
+- Reviewer ran: typecheck (exit 0), 37 targeted tests, SQL/network/secret greps,
+  WCAG contrast script, and 2 StrictMode probe tests in a temp dir (no repo files
+  touched). Full suite/build/cargo/native run deliberately left to coordinator.
+- Coordinator independently confirmed Major #1 (live DB probe on the running app:
+  content never persisted despite "Saved" status) and Juan's T-011 Blocker
+  (`focusSessions.ts` INSERT binds 6 params into 7 placeholders) by code reading.
+
+**Status: Review** (re-verify and re-approve the repaired candidate in round 2)
 
 ---
 
@@ -434,7 +471,28 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 2. Confirms SQL exists only in `src/data/**`, React components contain no business
    rules, and no duplicated logic exists between features.
 
-**Verification evidence:** (pending)
+**Verification evidence**
+
+- Review delivered 2026-10-10 (Juan, candidate `1e10d02`/clean tree): verdict
+  **REQUEST CHANGES** — 1 Blocker, 4 Major, plus Minors/Nits.
+- **Blocker (coordinator-confirmed by code reading):**
+  `src/data/repositories/focusSessions.ts:94-105` — INSERT lists 7 columns
+  (incl. `id`) with 7 placeholders but binds only 6 params, so every completed
+  focus session write fails at runtime. Repaired under T-014.
+- Majors: `toErrorMessage` duplicated 12× across features (repair: one shared
+  helper in `src/lib/errors.ts`, T-013/T-014); FocusPage completion bookkeeping
+  untested (T-014); rejected-promise cache makes DataProvider Retry unable to
+  recover (T-014, overlaps Laura Minor #4); no repository integration test
+  covering SQL/param shape (T-014).
+- Minors/Nits: `projects.remove` not transactional + `foreign_keys` pragma inert;
+  validation drift between `validation.ts` and contracts; non-atomic backup file
+  write in `save_backup_file`; unused `useDataStatus` export.
+- Reviewer also confirmed: SQL confined to `src/data/**`, no business rules in
+  components, parameterized statements only, DataError messages safe.
+- Coordinator independently confirmed the Blocker (see T-010 evidence) before
+  dispatching repairs.
+
+**Status: Review** (re-verify and re-approve the repaired candidate in round 2)
 
 ---
 
@@ -456,3 +514,94 @@ placeholder `src/features/<name>/<Name>Page.tsx` files.
 4. Acceptance tests from `PROJECT-BRIEF.md` mapped to recorded evidence.
 
 **Verification evidence:** (pending)
+
+---
+
+## T-013 — Frontend repair batch from review findings (Maya)
+
+- **Description:** Fix the frontend-owned findings from T-010/T-011: StrictMode
+  auto-save death (Major), focus-ring and muted-text contrast (Major/Minor),
+  NotesPage delete/refresh error handling (Minor), missing `role="alert"` on
+  field errors (Nit), task-search debounce (Nit), and replace the local
+  `toErrorMessage` copies in `src/features/**` + `src/app/**` with the shared
+  `src/lib/errors.ts` helper.
+- **Owner:** Maya · **Dependencies:** T-010, T-011 · **Risk:** Medium
+- **Lane:** Standard · **Status:** In progress
+
+**Owned files:** `src/lib/errors.ts` (new, created by coordinator first),
+`src/features/notes/**`, `src/features/today/**`, `src/features/tasks/**`,
+`src/features/projects/projectHelpers.ts` (+ its call sites in projects),
+`src/app/DataProvider.tsx`, `src/index.css`. Nothing in `src/data/**`,
+`src/features/focus/**`, `src/features/settings/**`, or `src-tauri/**`.
+
+**Acceptance criteria**
+
+1. Note auto-save writes to SQLite in the StrictMode dev runtime: a regression
+   test mounts the editor's saver lifecycle under `<StrictMode>` and asserts a
+   write happens after `schedule()`; the unmount flush and note-switch flush also
+   write.
+2. Focus ring meets ≥3:1 contrast on every surface in both themes; light
+   `--muted-foreground` on `--secondary` meets ≥4.5:1 (values re-measured with a
+   contrast script and recorded).
+3. A failed note delete keeps the confirmation dialog open and shows the error
+   next to the dialog; a failed list refresh with existing notes shows a visible
+   error banner (TodayPage pattern).
+4. All inline field errors use `role="alert"` (or one shared `FieldError`
+   component) across tasks/projects forms.
+5. Task search input is debounced (~250 ms) with stale-response guard preserved.
+6. `toErrorMessage` exists once in `src/lib/errors.ts`; the feature/app copies are
+   gone; behavior (data-layer message or feature fallback) unchanged.
+7. `npm run typecheck` and `npx vitest run src/features src/app src/lib` green.
+
+**Verification evidence:** (pending worker report + coordinator re-run)
+
+**Status: In progress**
+
+---
+
+## T-014 — Data/focus repair batch from review findings (Josh)
+
+- **Description:** Fix the data/focus-owned findings from T-010/T-011: the
+  `focusSessions.create` INSERT Blocker, app-global focus completion, Retry
+  recovery (rejected-promise cache), repository integration tests, completion
+  bookkeeping tests, transactional project delete, shared `toErrorMessage` usage
+  in focus/settings, and the non-atomic backup write.
+- **Owner:** Josh · **Dependencies:** T-010, T-011 · **Risk:** High
+- **Lane:** Gold · **Status:** In progress
+
+**Owned files:** `src/data/**`, `src/features/focus/**`,
+`src/features/settings/**`, `src/lib/errors.ts` (import only), new
+`src/features/focus/completeSession.ts` (+ shared completion watcher wired per
+T-010 fix #2 — coordinate: the watcher mounts in app shell, which is Maya's
+`src/app/**`; Josh provides the hook/component export, Maya only mounts it if
+needed, otherwise Josh mounts it inside `FocusPage` + `DataProvider` stays
+untouched by Josh). Nothing in `src/features/notes|tasks|today|projects/**`,
+`src/index.css`, or `src-tauri/**` except `lib.rs` for the backup-write fix.
+
+**Acceptance criteria**
+
+1. `focusSessions.create` INSERT binds exactly one param per column (id excluded
+   — SQLite autoincrements); a unit test asserts the column list, placeholder
+   count and param count stay in lockstep (regression test for the Blocker).
+2. A session whose deadline passes off the Focus page (or before the Focus page
+   ever mounts) is written to `focus_sessions` exactly once app-globally, with
+   `endedAt` at the deadline instant; the Today card stops showing a phantom
+   running session. Dedupe by `startedAt + plannedDurationMs` preserved.
+3. Retry on the app-wide error screen genuinely re-attempts: a failed
+   `Database.load`/`getData()` is not cached as a rejected promise.
+4. Repository integration tests exercise each repository against a mocked driver
+   capturing (sql, params) — asserting parameterization and row mapping for
+   tasks, projects, notes, focus sessions, focus state and settings.
+5. Focus completion bookkeeping is unit-tested: exactly-once write under
+   repeated ticks, crash-between-create-and-clear re-completes without a
+   duplicate row, failed write keeps state for Retry.
+6. `projects.remove` runs unassign + delete in one transaction.
+7. `save_backup_file` writes atomically (temp file + rename) and keeps the
+   `.json`-only, 100 MB, never-the-database guards.
+8. `toErrorMessage` in focus/settings comes from `src/lib/errors.ts`.
+9. `npm run typecheck`, `npx vitest run src/data src/features/focus src/features/settings`,
+   `cargo check` green.
+
+**Verification evidence:** (pending worker report + coordinator re-run)
+
+**Status: In progress**

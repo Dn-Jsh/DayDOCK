@@ -20,8 +20,20 @@ import { validateFocusSessionInput, validateFocusState } from "../validation";
 /** The single row of `focus_state` always uses this id. */
 const FOCUS_STATE_ROW_ID = 1;
 
+/** Full column list for SELECTs (includes the autoincrement key). */
 const FOCUS_SESSION_COLUMNS =
   "id, started_at, ended_at, planned_duration_ms, actual_duration_ms, completed, task_id";
+
+/**
+ * Columns targeted by an insert. `id` is deliberately absent — it
+ * autoincrements (`INTEGER PRIMARY KEY AUTOINCREMENT` in migration v1) and
+ * must never appear in the column list or the placeholder list. Kept separate
+ * from `FOCUS_SESSION_COLUMNS` so a SELECT and an INSERT can never drift into
+ * different column counts; the lockstep regression test in
+ * `repositories.integration.test.ts` pins columns = placeholders = params.
+ */
+const FOCUS_SESSION_INSERT_COLUMNS =
+  "started_at, ended_at, planned_duration_ms, actual_duration_ms, completed, task_id";
 
 const FOCUS_STATE_COLUMNS =
   "id, status, started_at, elapsed_before_ms, planned_duration_ms, task_id";
@@ -91,9 +103,14 @@ async function list(limit?: number): Promise<FocusSession[]> {
 
 async function create(input: FocusSessionInput): Promise<FocusSession> {
   const validated = validateFocusSessionInput(input);
+  /* The placeholder list is derived from the column list, so the two can
+     never diverge in count again (the T-014 Blocker: 7 columns, 6 params). */
+  const placeholders = FOCUS_SESSION_INSERT_COLUMNS.split(", ")
+    .map(() => "?")
+    .join(", ");
   const result = await execute(
-    `INSERT INTO focus_sessions (${FOCUS_SESSION_COLUMNS})
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO focus_sessions (${FOCUS_SESSION_INSERT_COLUMNS})
+     VALUES (${placeholders})`,
     [
       validated.startedAt,
       validated.endedAt,

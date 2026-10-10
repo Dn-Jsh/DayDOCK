@@ -79,15 +79,3 @@ export function describeCreatedAt(instant: Instant): CreatedDateInfo {
   }
   return { iso: localDateOf(instant), label: CREATED_DATE_FORMAT.format(date) };
 }
-
-/**
- * Error → user-safe message. Data-layer errors (`DataError`,
- * `ValidationError`) already carry a message safe to show; anything else
- * falls back to the caller's feature-specific copy.
- */
-export function toErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return fallback;
-}

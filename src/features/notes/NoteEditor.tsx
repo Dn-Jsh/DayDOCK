@@ -2,9 +2,11 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { Check, LoaderCircle, Trash2, TriangleAlert } from "lucide-react";
 import { ValidationError, type Note } from "../../data/contracts";
 import { Button } from "../../components/ui/button";
+import { FieldError } from "../../components/ui/field-error";
 import { Input } from "../../components/ui/input";
 import { Textarea } from "../../components/ui/textarea";
 import { cn } from "../../components/ui/cn";
+import { toErrorMessage } from "../../lib/errors";
 import { createAutoSaver, saveStatusLabel, type AutoSaver, type SaveStatus } from "./autosave";
 import { formatFullUpdated } from "./noteTime";
 
@@ -18,11 +20,6 @@ export interface NoteEditorProps {
   onDelete: () => void;
   /** Lets the page focus the title field after "New note". */
   titleInputRef?: RefObject<HTMLInputElement | null>;
-}
-
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") return error.message;
-  return "The note could not be saved.";
 }
 
 /**
@@ -61,15 +58,19 @@ export function NoteEditor({ note, onSave, onSaved, onDelete, titleInputRef }: N
           /* Show the message inline; the typed draft stays untouched. */
           setFieldErrors(error.fieldErrors);
         } else {
-          setSaveError(toErrorMessage(error));
+          setSaveError(toErrorMessage(error, "The note could not be saved."));
         }
       },
     });
   }
   const saver = saverRef.current;
 
-  /* Switching notes must never silently drop typing: flush, then detach. */
+  /* StrictMode double-invokes the mount effect (setup → cleanup → setup):
+     the setup re-arms the saver the cleanup just detached, or every later
+     schedule() is a silent no-op and nothing is ever written (T-013 #1).
+     The cleanup stays the real unmount/note-switch path: flush, then detach. */
   useEffect(() => {
+    saver.reset();
     return () => {
       saver.runNow();
       saver.cancel();
@@ -161,9 +162,9 @@ export function NoteEditor({ note, onSave, onSaved, onDelete, titleInputRef }: N
             aria-describedby={titleError ? "note-title-error" : undefined}
           />
           {titleError ? (
-            <p id="note-title-error" className="mt-1 text-xs text-destructive">
+            <FieldError id="note-title-error" className="mt-1">
               {titleError}
-            </p>
+            </FieldError>
           ) : null}
         </div>
 
@@ -180,9 +181,9 @@ export function NoteEditor({ note, onSave, onSaved, onDelete, titleInputRef }: N
             className="min-h-64 flex-1 resize-y"
           />
           {contentError ? (
-            <p id="note-content-error" className="mt-1 text-xs text-destructive">
+            <FieldError id="note-content-error" className="mt-1">
               {contentError}
-            </p>
+            </FieldError>
           ) : null}
         </div>
 

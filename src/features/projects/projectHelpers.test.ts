@@ -6,7 +6,6 @@ import {
   formatTaskCount,
   projectPercent,
   summarizeProjectTasks,
-  toErrorMessage,
 } from "./projectHelpers";
 
 describe("projectPercent", () => {
@@ -79,17 +78,5 @@ describe("describeCreatedAt", () => {
 
   it("falls back safely when the instant cannot be parsed", () => {
     expect(describeCreatedAt("not-a-date")).toEqual({ iso: null, label: "unknown" });
-  });
-});
-
-describe("toErrorMessage", () => {
-  it("passes through a real error message", () => {
-    expect(toErrorMessage(new Error("Database is locked"), "fallback")).toBe("Database is locked");
-  });
-
-  it("uses the fallback for blank or non-error values", () => {
-    expect(toErrorMessage(new Error("   "), "fallback")).toBe("fallback");
-    expect(toErrorMessage("boom", "fallback")).toBe("fallback");
-    expect(toErrorMessage(undefined, "fallback")).toBe("fallback");
   });
 });

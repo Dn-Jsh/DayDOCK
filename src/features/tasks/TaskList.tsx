@@ -3,6 +3,7 @@ import { Pencil, SquareCheckBig, Trash2 } from "lucide-react";
 import { useData } from "../../app/DataProvider";
 import type { ProjectWithProgress, Task } from "../../data/contracts";
 import { todayLocalDate } from "../../lib/date";
+import { toErrorMessage } from "../../lib/errors";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
@@ -25,12 +26,8 @@ export interface TaskListProps {
   emptyMessage?: string;
 }
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return "The operation failed.";
-}
+/** Fallback copy when a failure carries no user-safe message of its own. */
+const ACTION_ERROR = "The operation failed.";
 
 /**
  * The task rows: complete/reopen checkbox, title, due date (with overdue
@@ -90,7 +87,7 @@ export function TaskList({
       await data.tasks.setStatus(task.id, next);
       onChanged();
     } catch (caught) {
-      setError(toErrorMessage(caught));
+      setError(toErrorMessage(caught, ACTION_ERROR));
     } finally {
       setBusy(task.id, false);
     }
@@ -103,7 +100,7 @@ export function TaskList({
       setEditing(task);
       setDialogOpen(true);
     } catch (caught) {
-      setError(toErrorMessage(caught));
+      setError(toErrorMessage(caught, ACTION_ERROR));
     }
   };
 
@@ -116,7 +113,7 @@ export function TaskList({
       await data.tasks.remove(deleting.id);
       onChanged();
     } catch (caught) {
-      setError(toErrorMessage(caught));
+      setError(toErrorMessage(caught, ACTION_ERROR));
     }
   };
 

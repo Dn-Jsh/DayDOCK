@@ -15,17 +15,28 @@ import * as tasksRepository from "./repositories/tasks";
 
 let dataPromise: Promise<DayDockData> | null = null;
 
-/** Returns the shared data aggregate, opening the database on first call. */
+/**
+ * Returns the shared data aggregate, opening the database on first call.
+ * A successful aggregate is cached; a rejection is never cached — the slot is
+ * cleared in the rejection handler so the app-wide Retry re-attempts for real
+ * (the cached promise would otherwise be the same failure every time).
+ */
 export function getData(): Promise<DayDockData> {
   if (dataPromise === null) {
-    dataPromise = getDatabase().then(() => ({
-      tasks: tasksRepository.tasks,
-      projects: projectsRepository.projects,
-      notes: notesRepository.notes,
-      focusSessions: focusRepositories.focusSessions,
-      focusState: focusRepositories.focusState,
-      settings: settingsRepository.settings,
-    }));
+    dataPromise = getDatabase()
+      .then(() => ({
+        tasks: tasksRepository.tasks,
+        projects: projectsRepository.projects,
+        notes: notesRepository.notes,
+        focusSessions: focusRepositories.focusSessions,
+        focusState: focusRepositories.focusState,
+        settings: settingsRepository.settings,
+      }))
+      .catch((error: unknown) => {
+        /* Never cache a rejected promise — see the JSDoc above. */
+        dataPromise = null;
+        throw error;
+      });
   }
   return dataPromise;
 }

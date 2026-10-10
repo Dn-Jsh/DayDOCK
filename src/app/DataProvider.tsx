@@ -9,6 +9,7 @@ import {
 } from "react";
 import { getData } from "../data/index";
 import type { DayDockData } from "../data/contracts";
+import { toErrorMessage } from "../lib/errors";
 import { ErrorState } from "../components/ui/error-state";
 import { LoadingState } from "../components/ui/loading-state";
 
@@ -20,13 +21,8 @@ export interface DataStatus {
 
 const DataStatusContext = createContext<DataStatus | null>(null);
 
-/** DataError/ValidationError already carry user-safe messages; fall back anyway. */
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return "The local database could not be opened.";
-}
+/** Fallback copy when a failure carries no user-safe message of its own. */
+const LOAD_ERROR = "The local database could not be opened.";
 
 /**
  * Loads the data layer exactly once for the whole app and owns the app-wide
@@ -64,7 +60,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       },
       (error: unknown) => {
         if (attemptRef.current === attempt) {
-          setStatus({ loading: false, error: toErrorMessage(error), data: null });
+          setStatus({ loading: false, error: toErrorMessage(error, LOAD_ERROR), data: null });
         }
       },
     );
@@ -105,13 +101,4 @@ export function useData(): DayDockData {
     throw new Error("useData() must be used inside a DataProvider whose data layer has loaded.");
   }
   return status.data;
-}
-
-/** Non-throwing view of the load state (useful for app-level status text). */
-export function useDataStatus(): DataStatus {
-  const status = useContext(DataStatusContext);
-  if (!status) {
-    throw new Error("useDataStatus() must be used inside a DataProvider.");
-  }
-  return status;
 }

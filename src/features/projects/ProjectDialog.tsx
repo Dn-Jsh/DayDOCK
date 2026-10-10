@@ -10,8 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../../components/ui/dialog";
+import { FieldError } from "../../components/ui/field-error";
 import { Input } from "../../components/ui/input";
-import { toErrorMessage } from "./projectHelpers";
+import { toErrorMessage } from "../../lib/errors";
 
 export interface ProjectDialogProps {
   open: boolean;
@@ -112,9 +113,7 @@ export function ProjectDialog({ open, onOpenChange, project, onSaved }: ProjectD
               autoComplete="off"
             />
             {nameError !== undefined ? (
-              <p id={errorId} className="text-xs text-destructive">
-                {nameError}
-              </p>
+              <FieldError id={errorId}>{nameError}</FieldError>
             ) : null}
 
             {formError !== null ? (

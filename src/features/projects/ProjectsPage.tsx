@@ -9,6 +9,7 @@ import { EmptyState } from "../../components/ui/empty-state";
 import { ErrorState } from "../../components/ui/error-state";
 import { LoadingState } from "../../components/ui/loading-state";
 import { Progress } from "../../components/ui/progress";
+import { toErrorMessage } from "../../lib/errors";
 import { TaskList } from "../tasks";
 import { ProjectCard } from "./ProjectCard";
 import { ProjectDialog } from "./ProjectDialog";
@@ -16,7 +17,6 @@ import {
   formatProjectCount,
   formatTaskCount,
   summarizeProjectTasks,
-  toErrorMessage,
 } from "./projectHelpers";
 
 type Phase = "loading" | "ready" | "error";

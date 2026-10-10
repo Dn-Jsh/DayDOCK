@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { useData } from "../../app/DataProvider";
 import { ValidationError } from "../../data/contracts";
 import { todayLocalDate } from "../../lib/date";
+import { toErrorMessage } from "../../lib/errors";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { cn } from "../../components/ui/cn";
@@ -15,12 +16,8 @@ export interface QuickAddTaskProps {
 const INPUT_ID = "today-quick-add-input";
 const ERROR_ID = `${INPUT_ID}-error`;
 
-function toErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return "The task could not be saved.";
-}
+/** Fallback copy when a failure carries no user-safe message of its own. */
+const SAVE_ERROR = "The task could not be saved.";
 
 /**
  * Quick-add field for the Today dashboard. Enter or the button submits; a
@@ -71,7 +68,7 @@ export function QuickAddTask({ onCreated }: QuickAddTaskProps) {
       if (caught instanceof ValidationError) {
         setFieldError(caught.fieldErrors.title ?? caught.message);
       } else {
-        setFormError(toErrorMessage(caught));
+        setFormError(toErrorMessage(caught, SAVE_ERROR));
       }
       inputRef.current?.focus();
     } finally {
